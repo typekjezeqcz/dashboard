@@ -54,7 +54,7 @@ const pool = new Pool({
   password: process.env.DB_PASSWORD,
   port: process.env.DB_PORT,
   ssl: {
-  ca: fs.readFileSync('/path/to/server-ca.pem').toString(),
+  ca: fs.readFileSync('/home/user/ca-certificate-dashboard.pem').toString(),
 },
 
 });
