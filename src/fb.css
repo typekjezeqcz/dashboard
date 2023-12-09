@@ -1,0 +1,14 @@
+/* Default max-width for sticky columns */
+.sticky-column {
+    max-width: 300px; /* Set your desired maximum width */
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Expand column width on hover to show full text */
+.sticky-column:hover {
+    max-width: none;
+    overflow: visible;
+    white-space: normal;
+}
