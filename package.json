@@ -36,7 +36,7 @@
   },
   "proxy": "http://localhost:2000",
   "scripts": {
-    "server": "node app.js && pm2 start npm --name \"app\" -- start",
+    "start": "concurrently \"npm run server\" \"cross-env PORT=1500 npm run client\"",
     "client": "react-scripts start",
     "server": "node app.js",
     "build": "react-scripts build",
