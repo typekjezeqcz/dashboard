@@ -1,21 +1,26 @@
+import React from 'react';
+import moment from 'moment-timezone';
+
 const DateSelector = ({ setStartDate, setEndDate }) => {
+  const timezone = 'America/Los_Angeles';
+
   const setToday = () => {
-    const today = new Date();
+    const today = moment().tz(timezone).startOf('day').toDate();
     setStartDate(today);
     setEndDate(today);
   };
 
   const setYesterday = () => {
-    const yesterday = new Date(new Date().setDate(new Date().getDate() - 1));
+    const yesterday = moment().tz(timezone).subtract(1, 'days').startOf('day').toDate();
     setStartDate(yesterday);
     setEndDate(yesterday);
   };
 
   const setThisWeek = () => {
-    const today = new Date();
-    const firstDayOfWeek = new Date(today.setDate(today.getDate() - today.getDay()));
-    setStartDate(firstDayOfWeek);
-    setEndDate(new Date()); // Today's date
+    const startOfWeek = moment().tz(timezone).startOf('week').toDate();
+    const today = moment().tz(timezone).toDate();
+    setStartDate(startOfWeek);
+    setEndDate(today);
   };
 
   const handleSelectChange = (event) => {
