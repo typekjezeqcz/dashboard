@@ -1225,7 +1225,9 @@ app.get('/api/facebook-data', async (req, res) => {
       return res.status(400).send('Start date and end date are required');
   }
 
+  
   try {
+
     const adsQuery = `
     SELECT ad_id, 
            ad_name,
@@ -1292,7 +1294,14 @@ GROUP BY account_id`;
         WHERE date_start BETWEEN $1 AND $2
         GROUP BY account_id, campaign_id`;
 
-      const campaignIdsResult = await pool.query(campaignIdsQuery, [startDate, endDate]);
+        const [campaignIdsResult, adsResult, campaignsResult, adsetsResult, adaccountsResult] = await Promise.all([
+          pool.query(campaignIdsQuery, [startDate, endDate]),
+          pool.query(adsQuery, [startDate, endDate]),
+          pool.query(campaignsQuery, [startDate, endDate]),
+          pool.query(adsetsQuery, [startDate, endDate]),
+          pool.query(adaccountsQuery, [startDate, endDate])
+      ]);
+
       const campaignIdsByAccount = campaignIdsResult.rows.reduce((acc, row) => {
         if (!acc[row.account_id]) {
           acc[row.account_id] = [];
@@ -1306,18 +1315,18 @@ GROUP BY account_id`;
       const adsets = await pool.query(adsetsQuery, [startDate, endDate]);
       const adaccounts = await pool.query(adaccountsQuery, [startDate, endDate]);
 
-      const calculateRoasAndOrderCount = async (adObjectQuery, utmColumn, fbColumn) => {
+      const calculateRoasAndOrderCount = async (data, utmColumn, fbColumn) => {
         try {
-          const adObjects = await pool.query(adObjectQuery, [startDate, endDate]);
-          for (const obj of adObjects.rows) {
-            const fbId = obj[fbColumn]; // Accessing the correct Facebook ID
+          for (const obj of data) {
+            const fbId = obj[fbColumn];
       
-            // Query to get total revenue and order count
+            // Ensure the query is correctly constructed
             const shopifyDataQuery = `
               SELECT SUM(total_price) as total_revenue, COUNT(*) as order_count
               FROM shopify_orders
               WHERE ${utmColumn} = $1 AND DATE(created_at) BETWEEN DATE($2) AND DATE($3);`;
       
+            // Ensure the parameters are correctly passed
             const shopifyDataResult = await pool.query(shopifyDataQuery, [fbId, startDate, endDate]);
             const shopifyData = shopifyDataResult.rows[0];
             const totalRevenue = parseFloat(shopifyData.total_revenue) || 0;
@@ -1327,12 +1336,13 @@ GROUP BY account_id`;
             obj.order_count = orderCount;
             obj.roas = totalRevenue / obj.total_spend;
           }
-          return adObjects.rows;
+          return data;
         } catch (error) {
           console.error(`Error in calculateRoasAndOrderCount for ${utmColumn}:`, error);
           return [];
         }
       };
+      
       
       
       
@@ -1361,17 +1371,12 @@ GROUP BY account_id`;
         account.roas = account.total_revenue / account.total_spend || 0;
       }
       
+      const [adsWithRoasAndCount, adsetsWithRoasAndCount, campaignsWithRoasAndCount] = await Promise.all([
+        calculateRoasAndOrderCount(adsResult.rows, 'utm_content', 'ad_id'),
+        calculateRoasAndOrderCount(adsetsResult.rows, 'utm_term', 'adset_id'),
+        calculateRoasAndOrderCount(campaignsResult.rows, 'utm_campaign', 'campaign_id')
+      ]);
       
-    
-    
-      
-  
-      // Execute ROAS calculations for ads, adsets, campaigns
-      const adsWithRoasAndCount = await calculateRoasAndOrderCount(adsQuery, 'utm_content', 'ad_id');
-      const adsetsWithRoasAndCount = await calculateRoasAndOrderCount(adsetsQuery, 'utm_term', 'adset_id');
-      const campaignsWithRoasAndCount = await calculateRoasAndOrderCount(campaignsQuery, 'utm_campaign', 'campaign_id');
-
-
       const calculateCpa = (dataRows) => {
         for (const data of dataRows) {
           if (data.order_count && data.order_count > 0) {
