@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import Dashboard from './Dashboard';
 import Fb from './fb';
+import moment from 'moment-timezone';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import Header from './Header';
@@ -9,8 +10,10 @@ import DateSelector from './DatePicker';
 import { set } from 'date-fns';
 
 const Together = () => {
-    const [startDate, setStartDate] = useState(new Date());
-    const [endDate, setEndDate] = useState(new Date());
+    const timezone = 'America/Los_Angeles';
+    const todayLA = moment().tz(timezone).startOf('day').toDate();
+    const [startDate, setStartDate] = useState(todayLA);
+    const [endDate, setEndDate] = useState(todayLA);
     const [userRole, setUserRole] = useState('');
     const [fetchVersion, setFetchVersion] = useState(0); // or use a timestamp if more appropriate
     const [prevFbData, setPrevFbData] = useState(null);
