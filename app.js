@@ -922,7 +922,7 @@ async function fetchFacebookAdAccountSummary(adAccounts) {
         ].join(','),
         action_breakdowns: 'action_type',
         summary: 'spend,impressions,actions,clicks,reach,cpc,ctr,cpm,date_stop,date_start',
-        time_range: `{"since":"${today}","until":"${today}"}`
+        date_preset: 'today',
       };
 
       const response = await axios.get(url, { params });
