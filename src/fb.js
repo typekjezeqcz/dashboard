@@ -137,23 +137,17 @@ const DataTable = ({ data, title, prevData, onRowClick, type, selectedItem, filt
             return 'N/A'; // Placeholder for null values
         }
 
-        if (key === 'account_id' && showAccountId) {
-            return (
+        if (key === 'account_id') {
+          return showAccountId ? (
               <span className="hover:underline cursor-pointer" onClick={() => setShowAccountId(false)}>
-                {value}
+                  {value}
               </span>
-            );
-          }
-      
-          if (key === 'account_id' && !showAccountId && accountNames[value]) {
-            // Display the account name and toggle to account ID on click
-            return (
+          ) : (
               <span className="hover:underline cursor-pointer" onClick={() => setShowAccountId(true)}>
-                {accountNames[value]}
+                  {accountNames[value] || value}
               </span>
-            );
-          }
-    
+          );
+      }
         const unformattedFields = ['account_id', 'campaign_id', 'adset_id', 'ad_id'];
         if (unformattedFields.includes(key)) {
             return value;
@@ -201,39 +195,84 @@ const DataTable = ({ data, title, prevData, onRowClick, type, selectedItem, filt
     
 };
 
-const sortedAndFilteredSubData = useMemo(() => {
-  let sortableItems = [...filteredSubData]; // Copy filteredData to avoid direct mutation
 
-  if (sortConfig.key !== null) {
-    sortableItems.sort((a, b) => {
-      // Compare using original, unformatted data
-      let aValue = a[sortConfig.key];
-      let bValue = b[sortConfig.key];
-
-      // Convert string to number for numeric fields if necessary
-      aValue = (typeof aValue === 'string' && !isNaN(aValue)) ? parseFloat(aValue) : aValue;
-      bValue = (typeof bValue === 'string' && !isNaN(bValue)) ? parseFloat(bValue) : bValue;
-
-      if (aValue < bValue) {
-        return sortConfig.direction === 'ascending' ? -1 : 1;
-      }
-      if (aValue > bValue) {
-        return sortConfig.direction === 'ascending' ? 1 : -1;
-      }
-      return 0;
-    });
+const getColumnConfig = (type) => {
+  switch (type) {
+    case 'account':
+      return [
+        { key: 'account_id', label: 'Account Name' },
+        { key: 'total_spend', label: 'Spend' },
+        { key: 'roas', label: 'ROAS' },
+        { key: 'cpa', label: 'CPA' },
+        { key: 'aov', label: 'AOV' },
+        { key: 'cvr', label: 'CVR' },
+        { key: 'epc', label: 'EPC' },
+        { key: 'average_cpc', label: 'CPC' },
+        { key: 'average_ctr', label: 'CTR' },
+        { key: 'average_cpm', label: 'CPM' },
+        { key: 'total_clicks', label: 'Clicks' },
+        { key: 'order_count', label: 'Purchases' },
+        { key: 'total_revenue', label: 'Revenue' }
+        // Add other columns specific to 'account'
+      ];
+    case 'campaign':
+      return [
+        { key: 'campaign_id', label: 'Campaign ID' },
+        { key: 'campaign_name', label: 'Campaign Name' },
+        { key: 'account_id', label: 'Account Name' },
+        { key: 'roas', label: 'ROAS' },
+        { key: 'cpa', label: 'CPA' },
+        { key: 'aov', label: 'AOV' },
+        { key: 'cvr', label: 'CVR' },
+        { key: 'epc', label: 'EPC' },
+        { key: 'average_cpc', label: 'CPC' },
+        { key: 'average_ctr', label: 'CTR' },
+        { key: 'average_cpm', label: 'CPM' },
+        { key: 'total_clicks', label: 'Clicks' },
+        { key: 'order_count', label: 'Purchases' },
+        { key: 'total_revenue', label: 'Revenue' }
+        // Add other columns specific to 'campaign'
+      ];
+    case 'adset':
+      return [
+        { key: 'adset_id', label: 'Adset ID' },
+        { key: 'adset_name', label: 'Adset Name' },
+        { key: 'campaign_id', label: 'Campaign ID' },
+        { key: 'roas', label: 'ROAS' },
+        { key: 'cpa', label: 'CPA' },
+        { key: 'aov', label: 'AOV' },
+        { key: 'cvr', label: 'CVR' },
+        { key: 'epc', label: 'EPC' },
+        { key: 'average_cpc', label: 'CPC' },
+        { key: 'average_ctr', label: 'CTR' },
+        { key: 'average_cpm', label: 'CPM' },
+        { key: 'total_clicks', label: 'Clicks' },
+        { key: 'order_count', label: 'Purchases' },
+        { key: 'total_revenue', label: 'Revenue' }
+        // Add other columns specific to 'adset'
+      ];
+    case 'ads':
+      return [
+        { key: 'ads_id', label: 'Ads ID' },
+        { key: 'ads_name', label: 'Ads Name' },
+        { key: 'adset_id', label: 'Adset ID' },
+        { key: 'roas', label: 'ROAS' },
+        { key: 'cpa', label: 'CPA' },
+        { key: 'aov', label: 'AOV' },
+        { key: 'cvr', label: 'CVR' },
+        { key: 'epc', label: 'EPC' },
+        { key: 'average_cpc', label: 'CPC' },
+        { key: 'average_ctr', label: 'CTR' },
+        { key: 'average_cpm', label: 'CPM' },
+        { key: 'total_clicks', label: 'Clicks' },
+        { key: 'order_count', label: 'Purchases' },
+        { key: 'total_revenue', label: 'Revenue' }
+        // Add other columns specific to 'ads'
+      ];
+    default:
+      return []; // Default case
   }
-
-  if (searchTerm) {
-    return sortableItems.filter(item => {
-      return Object.values(item).some(value =>
-        String(value).toLowerCase().includes(searchTerm.toLowerCase())
-      );
-    });
-  }
-
-  return sortableItems;
-}, [filteredSubData, sortConfig, searchTerm]);
+};
 
 
 const getChangeIndicator = (key, currentValue, previousValue) => {
@@ -242,6 +281,9 @@ const getChangeIndicator = (key, currentValue, previousValue) => {
   if (currentValue < previousValue) return '↓';
   return null; // No change
 };
+
+const columns = useMemo(() => getColumnConfig(type), [type]);
+
 
 return (
   <div className="relative shadow-md sm:rounded-lg">
@@ -261,36 +303,36 @@ return (
     </div>
     <div className="overflow-x-auto" style={{ maxHeight: `600px` }}>
       <table className="w-full text-sm text-left text-white dark:text-white">
-        <thead className="bg-white dark:bg-gray-700 shadow">
+      <thead className="bg-white dark:bg-gray-700 shadow sticky top-0 z-10">
           <tr>
-            {Object.keys(data[0]).map((key) => (
+            {columns.map(({ key, label }) => (
               <th
                 key={key}
                 onClick={() => requestSort(key)}
                 className={`py-3 px-6 cursor-pointer z-10 ${isStickyColumn(key) ? 'sticky left-0' : ''}`}
               >
-                {key}
+                {label}
                 {sortConfig.key === key ? (sortConfig.direction === 'ascending' ? ' ↑' : ' ↓') : null}
               </th>
             ))}
           </tr>
         </thead>
         <tbody>
-  {sortedAndFilteredData.map((row, idx) => (
-    <React.Fragment key={idx}>
-      {/* Main Row Rendering */}
-      <tr key={idx} onClick={() => handleRowClick(row)} className={idx % 2 === 0 ? 'bg-white dark:bg-gray-400' : 'bg-gray-50 dark:bg-gray-300'}>
-        {Object.entries(row).map(([key, val], index) => {
-          const changeIndicator = prevData && prevData[idx] ? getChangeIndicator(key, val, prevData[idx][key]) : null;
-          return (
-            <td key={index} className={`py-4 px-6 ${isStickyColumn(key) ? 'sticky left-0 sticky-column' : ''} ${idx % 2 === 0 ? 'dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-900'}`}>
-              {formatValue(key, val)}
-              {changeIndicator && <span className="change-indicator">{changeIndicator}</span>}
-            </td>
-          );
-        })}
-      </tr>
-    </React.Fragment>
+          {sortedAndFilteredData.map((row, idx) => (
+            <React.Fragment key={idx}>
+              <tr key={idx} onClick={() => handleRowClick(row)} className={idx % 2 === 0 ? 'bg-white dark:bg-gray-400' : 'bg-gray-50 dark:bg-gray-300'}>
+                {columns.map(({ key }) => {
+                  const val = row[key];
+                  const changeIndicator = prevData && prevData[idx] ? getChangeIndicator(key, val, prevData[idx][key]) : null;
+                  return (
+                    <td key={key} className={`py-4 px-6 ${isStickyColumn(key) ? 'sticky left-0 sticky-column' : ''} ${idx % 2 === 0 ? 'dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-900'}`}>
+                      {formatValue(key, val)}
+                      {changeIndicator && <span className="change-indicator">{changeIndicator}</span>}
+                    </td>
+                  );
+                })}
+              </tr>
+            </React.Fragment>
   ))}
 </tbody>
 
