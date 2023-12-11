@@ -14,7 +14,7 @@ const db = pgp(dbConfig);
 
 const jsonFileName = 'orders_2032-12-11.json';
 
-fs.readFile(jsonFileName, 'utf8', (err, data) => {
+fs.readFile(jsonFileName, 'utf8', async (err, data) => {
   if (err) {
     console.error(`Error reading ${jsonFileName}: ${err}`);
     return;
@@ -24,7 +24,7 @@ fs.readFile(jsonFileName, 'utf8', (err, data) => {
     const orders = JSON.parse(data);
 
     // Loop through the orders and insert them into the database
-    orders.forEach(async (order) => {
+    for (const order of orders) {
       try {
         await db.none(
           `INSERT INTO shopify_orders (
@@ -55,9 +55,14 @@ fs.readFile(jsonFileName, 'utf8', (err, data) => {
         );
         console.log(`Order with ID ${order.id} inserted successfully.`);
       } catch (error) {
-        console.error(`Error inserting order with ID ${order.id}: ${error}`);
+        if (error.code === pgp.errors.queryResultErrorCode.noData) {
+          console.error(`Conflict for order with ID ${order.id}: This order already exists in the database.`);
+        } else {
+          console.error(`Error inserting order with ID ${order.id}: ${error}`);
+        }
+        console.error(`Data for order: ${JSON.stringify(order)}`);
       }
-    });
+    }
   } catch (jsonError) {
     console.error(`Error parsing JSON data: ${jsonError}`);
   } finally {
