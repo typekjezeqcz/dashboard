@@ -200,7 +200,7 @@ const getColumnConfig = (type) => {
   switch (type) {
     case 'account':
       return [
-        { key: 'account_id', label: 'Account Name' },
+        { key: 'account_id', label: 'Acc Name' },
         { key: 'total_spend', label: 'Spend' },
         { key: 'roas', label: 'ROAS' },
         { key: 'cpa', label: 'CPA' },
@@ -219,7 +219,7 @@ const getColumnConfig = (type) => {
       return [
         { key: 'campaign_id', label: 'Campaign ID' },
         { key: 'campaign_name', label: 'Campaign Name' },
-        { key: 'account_id', label: 'Account Name' },
+        { key: 'account_id', label: 'Acc Name' },
         { key: 'roas', label: 'ROAS' },
         { key: 'cpa', label: 'CPA' },
         { key: 'aov', label: 'AOV' },
