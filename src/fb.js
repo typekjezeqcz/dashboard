@@ -220,6 +220,7 @@ const getColumnConfig = (type) => {
         { key: 'campaign_id', label: 'Campaign ID' },
         { key: 'campaign_name', label: 'Campaign Name' },
         { key: 'account_id', label: 'Acc Name' },
+        { key: 'total_spend', label: 'Spend' },
         { key: 'roas', label: 'ROAS' },
         { key: 'cpa', label: 'CPA' },
         { key: 'aov', label: 'AOV' },
@@ -238,6 +239,7 @@ const getColumnConfig = (type) => {
         { key: 'adset_id', label: 'Adset ID' },
         { key: 'adset_name', label: 'Adset Name' },
         { key: 'campaign_id', label: 'Campaign ID' },
+        { key: 'total_spend', label: 'Spend' },
         { key: 'roas', label: 'ROAS' },
         { key: 'cpa', label: 'CPA' },
         { key: 'aov', label: 'AOV' },
@@ -253,9 +255,10 @@ const getColumnConfig = (type) => {
       ];
     case 'ads':
       return [
-        { key: 'ads_id', label: 'Ads ID' },
-        { key: 'ads_name', label: 'Ads Name' },
+        { key: 'ad_id', label: 'Ads ID' },
+        { key: 'ad_name', label: 'Ads Name' },
         { key: 'adset_id', label: 'Adset ID' },
+        { key: 'total_spend', label: 'Spend' },
         { key: 'roas', label: 'ROAS' },
         { key: 'cpa', label: 'CPA' },
         { key: 'aov', label: 'AOV' },
@@ -414,6 +417,10 @@ return (
 
       <div className="my-4">
         {adsetsData.length > 0 ? <DataTable data={adsetsData}  onRowClick={handleRowClick} onSubRowClick={handleSubRowClick} title="Ad Sets Data" type="adset" selectedItem={selectedItem} filteredData={filteredData} selectedSubItem={selectedSubItem} filteredSubData={filteredSubData}/> : <p>No data available.</p>}
+      </div>
+
+      <div className="my-4">
+        {adsetsData.length > 0 ? <DataTable data={adsData}  onRowClick={handleRowClick} onSubRowClick={handleSubRowClick} title="Ads Data" type="ads" selectedItem={selectedItem} filteredData={filteredData} selectedSubItem={selectedSubItem} filteredSubData={filteredSubData}/> : <p>No data available.</p>}
       </div>
 
     
