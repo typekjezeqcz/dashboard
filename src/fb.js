@@ -9,8 +9,8 @@ import SummaryCardsContainer from './FacebookSalesSummary';
 
 const DataTable = ({ data, title, prevData, onRowClick, type, selectedItem, filteredData, selectedSubItem, onSubRowClick, filteredSubData }) => {
   const [showAccountId, setShowAccountId] = useState(false); 
-    const [sortConfig, setSortConfig] = useState({ key: null, direction: 'ascending' });
-    const [searchTerm, setSearchTerm] = useState(''); // Search term state
+  const [sortConfig, setSortConfig] = useState({ key: 'total_spend', direction: 'descending' });
+  const [searchTerm, setSearchTerm] = useState(''); // Search term state
 
     const isStickyColumn = (columnName) => {
         return ['campaign_name', 'adset_name', 'ad_name'].includes(columnName);
@@ -219,9 +219,7 @@ const getColumnConfig = (type) => {
       ];
     case 'campaign':
       return [
-        { key: 'campaign_id', label: 'Campaign ID' },
         { key: 'campaign_name', label: 'Campaign Name' },
-        { key: 'account_id', label: 'Acc Name' },
         { key: 'total_spend', label: 'Spend' },
         { key: 'roas', label: 'ROAS' },
         { key: 'cpa', label: 'CPA' },
@@ -233,7 +231,10 @@ const getColumnConfig = (type) => {
         { key: 'average_cpm', label: 'CPM' },
         { key: 'total_clicks', label: 'Clicks' },
         { key: 'order_count', label: 'Purchases' },
-        { key: 'total_revenue', label: 'Revenue' }
+        { key: 'total_revenue', label: 'Revenue' },
+        { key: 'campaign_id', label: 'Campaign ID' },
+        { key: 'account_id', label: 'Acc Name' },
+
         // Add other columns specific to 'campaign'
       ];
     case 'adset':
