@@ -21,25 +21,21 @@ function formatCurrency(value) {
   }).format(value);
 }
 
-
 // Component to calculate and display summary cards
 const SummaryCardsContainer = ({ adaccountsData }) => {
-  // Assuming adaccountsData is an array of objects with revenue, order_count, and roas properties
   const totalSales = adaccountsData.reduce((acc, account) => acc + account.total_revenue, 0);
   const totalOrders = adaccountsData.reduce((acc, account) => acc + account.order_count, 0);
-  const averageROAS = adaccountsData.reduce((acc, account) => acc + account.roas, 0) / adaccountsData.length;
   const totalSpend = adaccountsData.reduce((acc, account) => acc + account.total_spend, 0);
+  const averageROAS = totalSpend ? (totalSales / totalSpend) : 0; // Calculating ROAS
 
   return (
-    <div className="mt-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 ">
+    <div className="mt-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <SummaryCard title="Facebook Total Sales" value={formatCurrency(totalSales)} />
       <SummaryCard title="Facebook Orders Count" value={totalOrders} />
       <SummaryCard title="Facebook Average ROAS" value={`${averageROAS.toFixed(2)}`} />
       <SummaryCard title="Facebook Total Spend" value={formatCurrency(totalSpend)} />
     </div>
-
   );
 };
 
 export default SummaryCardsContainer;
-
