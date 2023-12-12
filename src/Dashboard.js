@@ -47,13 +47,7 @@ const Dashboard = ({ data }) => {
                 aggregatedData={aggregatedData}
                 counter={counter}
             />
-            <FacebookSalesSummary 
-                facebookData={aggregatedData.facebookOrders || {}}
-                facebookSalesTotal={facebookSalesTotal}
-                facebookOrdersCount={facebookOrdersCount}
-                facebookAverageOrder={facebookAverageOrder}
-                facebookLargestOrder={facebookLargestOrder}
-            />
+
         </div>
     );
 };
@@ -105,22 +99,6 @@ function SalesSummary({ isUpdating, ordersCount, todaysSales, averageOrderValue,
 }
 
 
-function FacebookSalesSummary({ facebookData, facebookSalesTotal, facebookOrdersCount, facebookAverageOrder, facebookLargestOrder }) {
-  if (!facebookData || Object.keys(facebookData).length === 0) {
-      return <p>No Facebook sales data available.</p>;
-  }
-
-  return (
-      <div className="mt-5 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <SummaryCard title="Facebook Total Sales" value={formatCurrency(facebookSalesTotal)} />
-              <SummaryCard title="Facebook Orders Count" value={facebookOrdersCount.toString()} />
-              <SummaryCard title="Facebook Average Order Value" value={formatCurrency(facebookAverageOrder)} />
-              <SummaryCard title="Facebook Largest Order" value={formatCurrency(facebookLargestOrder)} />
-          </div>
-      </div>
-  );
-}
 
 
   
