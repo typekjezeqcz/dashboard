@@ -306,7 +306,7 @@ return (
     </div>
     <div className="overflow-x-auto" style={{ maxHeight: `600px` }}>
       <table className="w-full text-sm text-left text-white dark:text-white">
-      <thead className="bg-white dark:bg-gray-700 shadow sticky top-0 z-10">
+      <thead className="bg-white dark:bg-gray-700 shadow sticky top-0 z-0">
           <tr>
             {columns.map(({ key, label }) => (
               <th
