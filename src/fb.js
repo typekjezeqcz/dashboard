@@ -213,7 +213,7 @@ const getColumnConfig = (type) => {
         { key: 'average_ctr', label: 'CTR' },
         { key: 'average_cpm', label: 'CPM' },
         { key: 'total_clicks', label: 'Clicks' },
-        { key: 'order_count', label: 'Purchases' },
+        { key: 'order_count', label: 'PUR' },
         { key: 'total_revenue', label: 'Revenue' }
         // Add other columns specific to 'account'
       ];
@@ -230,7 +230,7 @@ const getColumnConfig = (type) => {
         { key: 'average_ctr', label: 'CTR' },
         { key: 'average_cpm', label: 'CPM' },
         { key: 'total_clicks', label: 'Clicks' },
-        { key: 'order_count', label: 'Purchases' },
+        { key: 'order_count', label: 'PUR' },
         { key: 'total_revenue', label: 'Revenue' },
         { key: 'campaign_id', label: 'Campaign ID' },
         { key: 'account_id', label: 'Acc Name' },
@@ -250,7 +250,7 @@ const getColumnConfig = (type) => {
         { key: 'average_ctr', label: 'CTR' },
         { key: 'average_cpm', label: 'CPM' },
         { key: 'total_clicks', label: 'Clicks' },
-        { key: 'order_count', label: 'Purchases' },
+        { key: 'order_count', label: 'PUR' },
         { key: 'total_revenue', label: 'Revenue' },
         { key: 'adset_id', label: 'Adset ID' },
         // Add other columns specific to 'adset'
