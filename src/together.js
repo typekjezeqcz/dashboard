@@ -127,6 +127,8 @@ const Together = () => {
             <footer className="bg-white py-4">
             <div className="max-w-6xl mx-auto px-6 flex justify-center">
                 <p className="text-gray-600">Made by Felix for rybízci at 10FC</p>
+            </div>
+        </footer>
         </div>
         </div>
     );
