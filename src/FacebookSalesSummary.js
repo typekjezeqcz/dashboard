@@ -32,7 +32,7 @@ const SummaryCardsContainer = ({ adaccountsData }) => {
     <div className="mt-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <SummaryCard title="Facebook Total Sales" value={formatCurrency(totalSales)} />
       <SummaryCard title="Facebook Orders Count" value={totalOrders} />
-      <SummaryCard title="Facebook Average ROAS" value={`${averageROAS.toFixed(2)}`} />
+      <SummaryCard title="Facebook ROAS" value={`${averageROAS.toFixed(2)}`} />
       <SummaryCard title="Facebook Total Spend" value={formatCurrency(totalSpend)} />
     </div>
   );
