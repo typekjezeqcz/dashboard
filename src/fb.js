@@ -5,6 +5,8 @@ import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import Spinner from './spinner'; // Import the Spinner component
 import './fb.css'
+import SummaryCardsContainer from './FacebookSalesSummary';
+
 const DataTable = ({ data, title, prevData, onRowClick, type, selectedItem, filteredData, selectedSubItem, onSubRowClick, filteredSubData }) => {
   const [showAccountId, setShowAccountId] = useState(false); 
     const [sortConfig, setSortConfig] = useState({ key: null, direction: 'ascending' });
@@ -236,9 +238,7 @@ const getColumnConfig = (type) => {
       ];
     case 'adset':
       return [
-        { key: 'adset_id', label: 'Adset ID' },
         { key: 'adset_name', label: 'Adset Name' },
-        { key: 'campaign_id', label: 'Campaign ID' },
         { key: 'total_spend', label: 'Spend' },
         { key: 'roas', label: 'ROAS' },
         { key: 'cpa', label: 'CPA' },
@@ -250,14 +250,13 @@ const getColumnConfig = (type) => {
         { key: 'average_cpm', label: 'CPM' },
         { key: 'total_clicks', label: 'Clicks' },
         { key: 'order_count', label: 'Purchases' },
-        { key: 'total_revenue', label: 'Revenue' }
+        { key: 'total_revenue', label: 'Revenue' },
+        { key: 'adset_id', label: 'Adset ID' },
         // Add other columns specific to 'adset'
       ];
     case 'ads':
       return [
-        { key: 'ad_id', label: 'Ads ID' },
         { key: 'ad_name', label: 'Ads Name' },
-        { key: 'adset_id', label: 'Adset ID' },
         { key: 'total_spend', label: 'Spend' },
         { key: 'roas', label: 'ROAS' },
         { key: 'cpa', label: 'CPA' },
@@ -269,7 +268,8 @@ const getColumnConfig = (type) => {
         { key: 'average_cpm', label: 'CPM' },
         { key: 'total_clicks', label: 'Clicks' },
         { key: 'order_count', label: 'Purchases' },
-        { key: 'total_revenue', label: 'Revenue' }
+        { key: 'total_revenue', label: 'Revenue' },
+        { key: 'ad_id', label: 'Ads ID' },
         // Add other columns specific to 'ads'
       ];
     default:
@@ -350,6 +350,7 @@ return (
       const [selectedItem, setSelectedItem] = useState({ id: null, type: null });
       const [selectedSubItem, setSelectedSubItem] = useState({ id: null, type: null });
 
+      console.log("Data received in Fb component:", data);
 
       const handleRowClick = (id, type, rowData) => {
 
@@ -360,6 +361,7 @@ return (
         setSelectedSubItem({ id, type });
       };
       
+
 
       const filteredData = useMemo(() => {
         switch (selectedItem.type) {
@@ -405,8 +407,9 @@ return (
           }
 
     return (
-            <div className="container mx-auto p-4">
-
+      <div>
+      <SummaryCardsContainer adaccountsData={adaccountsData} />
+      <div className="container mx-auto p-4">
       <div className="my-4">
         {adaccountsData.length > 0 ? <DataTable data={adaccountsData} title="Ad Accounts Data" onRowClick={handleRowClick} onSubRowClick={handleSubRowClick} type="account"  selectedItem={selectedItem} filteredData={filteredData} selectedSubItem={selectedSubItem} filteredSubData={filteredSubData} /> : <p>No data available.</p>}
       </div>
@@ -424,7 +427,7 @@ return (
       </div>
 
     
-    
+      </div>
     </div>
   );
 };
