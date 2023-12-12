@@ -268,7 +268,7 @@ const getColumnConfig = (type) => {
         { key: 'average_ctr', label: 'CTR' },
         { key: 'average_cpm', label: 'CPM' },
         { key: 'total_clicks', label: 'Clicks' },
-        { key: 'order_count', label: 'Purchases' },
+        { key: 'order_count', label: 'PUR' },
         { key: 'total_revenue', label: 'Revenue' },
         { key: 'ad_id', label: 'Ads ID' },
         // Add other columns specific to 'ads'
@@ -313,7 +313,7 @@ return (
               <th
                 key={key}
                 onClick={() => requestSort(key)}
-                className={`py-3 px-6 cursor-pointer z-10 ${isStickyColumn(key) ? 'sticky left-0' : ''}`}
+                className={`py-3 px-6 text-center cursor-pointer z-0 ${isStickyColumn(key) ? 'sticky left-0' : ''}`}
               >
                 {label}
                 {sortConfig.key === key ? (sortConfig.direction === 'ascending' ? ' ↑' : ' ↓') : null}
@@ -329,7 +329,7 @@ return (
                   const val = row[key];
                   const changeIndicator = prevData && prevData[idx] ? getChangeIndicator(key, val, prevData[idx][key]) : null;
                   return (
-                    <td key={key} className={`py-4 px-6 ${isStickyColumn(key) ? 'sticky left-0 sticky-column' : ''} ${idx % 2 === 0 ? 'dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-900'}`}>
+                    <td key={key} className={`py-4 text-center px-6 ${isStickyColumn(key) ? 'sticky left-0 sticky-column' : ''} ${idx % 2 === 0 ? 'dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-900'}`}>
                       {formatValue(key, val)}
                       {changeIndicator && <span className="change-indicator">{changeIndicator}</span>}
                     </td>
