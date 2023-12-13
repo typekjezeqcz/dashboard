@@ -97,7 +97,7 @@ const Together = () => {
         <div>
         <Header userRole={userRole} />
         <div className="container mx-auto px-6 py-4">
-            <div className="sticky top-0 pt-2 pb-2 bg-white z-10">
+            <div className="sticky top-0 pt-2 pb-2 bg-white z-20">
                 <div className="flex max-w-6xl justify-end gap-3 mb-4">
                     <DateSelector setStartDate={setStartDate} setEndDate={setEndDate} />
                     <div className="flex gap-2">
