@@ -307,13 +307,13 @@ return (
     </div>
     <div className="overflow-x-auto" style={{ maxHeight: `600px` }}>
       <table className="w-full text-sm text-left text-white dark:text-white">
-      <thead className="bg-white dark:bg-gray-700 shadow sticky top-0 z-0">
+      <thead className="bg-white dark:bg-gray-700 shadow sticky top-0 z-10">
           <tr>
             {columns.map(({ key, label }) => (
               <th
                 key={key}
                 onClick={() => requestSort(key)}
-                className={`py-3 px-6 text-center cursor-pointer z-0 ${isStickyColumn(key) ? 'sticky left-0' : ''}`}
+                className={`py-3 px-6 text-center cursor-pointer z-10 ${isStickyColumn(key) ? 'sticky bg-gray-700 left-0' : ''}`}
               >
                 {label}
                 {sortConfig.key === key ? (sortConfig.direction === 'ascending' ? ' ↑' : ' ↓') : null}
