@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react'; // Import useRef
 import DateSelector from './DatePicker'; // Assuming DateSelector is in the same directory
 import axios from 'axios';
 import DatePicker from 'react-datepicker';
@@ -11,6 +11,11 @@ const DataTable = ({ data, title, prevData, onRowClick, type, selectedItem, filt
   const [showAccountId, setShowAccountId] = useState(false); 
   const [sortConfig, setSortConfig] = useState({ key: 'total_spend', direction: 'descending' });
   const [searchTerm, setSearchTerm] = useState(''); // Search term state
+  const [includeFilters, setIncludeFilters] = useState([]);
+  const [excludeFilters, setExcludeFilters] = useState([]);
+  const [showFilterOptions, setShowFilterOptions] = useState(false);
+  const includeInputRef = useRef(null);
+  const excludeInputRef = useRef(null);
 
     const isStickyColumn = (columnName) => {
         return ['campaign_name', 'adset_name', 'ad_name'].includes(columnName);
@@ -131,8 +136,39 @@ const DataTable = ({ data, title, prevData, onRowClick, type, selectedItem, filt
     return 0;
   });
 
-  return sortableItems;
-}, [data, sortConfig, searchTerm]);
+  let filteredItems = sortableItems.filter(item => {
+    const itemString = JSON.stringify(item).toLowerCase();
+    
+    // Check includes
+    const includeCheck = includeFilters.length === 0 || includeFilters.some(filter => itemString.includes(filter.toLowerCase()));
+
+    // Check excludes
+    const excludeCheck = !excludeFilters.some(filter => itemString.includes(filter.toLowerCase()));
+
+    return includeCheck && excludeCheck;
+  });
+
+  return filteredItems;
+}, [data, sortConfig, searchTerm, includeFilters, excludeFilters]);
+
+const addFilter = (filter, type) => {
+  if (type === 'include') {
+    setIncludeFilters([...includeFilters, filter]);
+    includeInputRef.current.value = ''; // Clear input field after adding
+  } else if (type === 'exclude') {
+    setExcludeFilters([...excludeFilters, filter]);
+    excludeInputRef.current.value = ''; // Clear input field after adding
+  }
+};
+
+const removeFilter = (filter, type) => {
+  if (type === 'include') {
+    setIncludeFilters(includeFilters.filter(f => f !== filter));
+  } else if (type === 'exclude') {
+    setExcludeFilters(excludeFilters.filter(f => f !== filter));
+  }
+};
+
     const formatValue = (key, value) => {
         // Handle null values
         if (value === null) {
@@ -295,7 +331,36 @@ return (
       <div>
         <h1 className="text-2xl font-semibold">{title}</h1>
       </div>
-      <div>
+      <div className="flex items-center space-x-2">
+        {/* Filter Button */}
+        <button 
+          onClick={() => setShowFilterOptions(!showFilterOptions)}
+          className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+        >
+          Filter
+        </button>
+        {/* Include and Exclude Filters */}
+        {showFilterOptions && (
+          <>
+            <input type="text" placeholder="Include filter" ref={includeInputRef} className="p-2 border border-gray-300 rounded"/>
+            <button 
+              onClick={() => addFilter(includeInputRef.current.value, 'include')} 
+              className="bg-blue-500 hover:bg-blue-600 text-white text-sm py-2 px-2 rounded focus:outline-none focus:ring-2 focus:ring-blue-300"
+            >
+              Include
+            </button>
+
+            <input type="text" placeholder="Exclude filter" ref={excludeInputRef} className="p-2 border border-gray-300 rounded"/>
+            <button 
+              onClick={() => addFilter(excludeInputRef.current.value, 'exclude')} 
+              className="bg-red-500 hover:bg-red-600 text-white text-sm py-2 px-2 rounded focus:outline-none focus:ring-2 focus:ring-red-300"
+            >
+              Exclude
+            </button>
+          </>
+        )}
+
+        {/* Search Input */}
         <input
           type="text"
           placeholder="Search..."
@@ -305,9 +370,40 @@ return (
         />
       </div>
     </div>
+
+    {/* Display Active Filters */}
+    <div className="active-filters flex flex-wrap space-x-2 mb-4">
+      {includeFilters.map((filter, index) => (
+        <span key={index} className="flex items-center bg-blue-100 text-blue-800 px-4 py-2 rounded-full">
+          Include: {filter} 
+          <button 
+            onClick={() => removeFilter(filter, 'include')} 
+            className="ml-2 p-1 rounded-full hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-blue-300"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </span>
+      ))}
+      {excludeFilters.map((filter, index) => (
+        <span key={index} className="flex items-center bg-red-100 text-red-800 px-4 py-2 rounded-full">
+          Exclude: {filter} 
+          <button 
+            onClick={() => removeFilter(filter, 'exclude')} 
+            className="ml-2 p-1 rounded-full hover:bg-red-200 focus:outline-none focus:ring-2 focus:ring-red-300"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </span>
+      ))}
+    </div>
+
     <div className="overflow-x-auto" style={{ maxHeight: `600px` }}>
       <table className="w-full text-sm text-left text-white dark:text-white">
-      <thead className="bg-white dark:bg-gray-700 shadow sticky top-0 z-10">
+        <thead className="bg-white dark:bg-gray-700 shadow sticky top-0 z-10">
           <tr>
             {columns.map(({ key, label }) => (
               <th
@@ -323,23 +419,20 @@ return (
         </thead>
         <tbody>
           {sortedAndFilteredData.map((row, idx) => (
-            <React.Fragment key={idx}>
-              <tr key={idx} onClick={() => handleRowClick(row)} className={idx % 2 === 0 ? 'bg-white dark:bg-gray-400' : 'bg-gray-50 dark:bg-gray-300'}>
-                {columns.map(({ key }) => {
-                  const val = row[key];
-                  const changeIndicator = prevData && prevData[idx] ? getChangeIndicator(key, val, prevData[idx][key]) : null;
-                  return (
-                    <td key={key} className={`py-4 text-center px-6 ${isStickyColumn(key) ? 'sticky left-0 sticky-column' : ''} ${idx % 2 === 0 ? 'dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-900'}`}>
-                      {formatValue(key, val)}
-                      {changeIndicator && <span className="change-indicator">{changeIndicator}</span>}
-                    </td>
-                  );
-                })}
-              </tr>
-            </React.Fragment>
-  ))}
-</tbody>
-
+            <tr key={idx} onClick={() => handleRowClick(row)} className={idx % 2 === 0 ? 'bg-white dark:bg-gray-400' : 'bg-gray-50 dark:bg-gray-300'}>
+              {columns.map(({ key }) => {
+                const val = row[key];
+                const changeIndicator = prevData && prevData[idx] ? getChangeIndicator(key, val, prevData[idx][key]) : null;
+                return (
+                  <td key={key} className={`py-4 text-center px-6 ${isStickyColumn(key) ? 'sticky left-0 sticky-column' : ''} ${idx % 2 === 0 ? 'dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-900'}`}>
+                    {formatValue(key, val)}
+                    {changeIndicator && <span className="change-indicator">{changeIndicator}</span>}
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
+        </tbody>
       </table>
     </div>
   </div>
