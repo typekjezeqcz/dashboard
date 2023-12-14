@@ -547,8 +547,11 @@ return (
         switch (selectedItem.type) {
           case 'account':
             return data.adsData.filter(ad => ad.account_id === selectedItem.id);
-          case 'campaign':
-            return data.adsData.filter(ad => ad.campaign_id === selectedItem.id);
+            case 'campaign':
+              // Find all adsets belonging to the selected campaign
+              const adsetsInCampaign = data.adsetsData.filter(adset => adset.campaign_id === selectedItem.id);
+              // Filter ads that belong to any of these adsets
+              return data.adsData.filter(ad => adsetsInCampaign.some(adset => adset.adset_id === ad.adset_id));
           case 'adset':
             return data.adsData.filter(ad => ad.adset_id === selectedItem.id);
           default:
