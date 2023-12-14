@@ -46,7 +46,7 @@ const DataTable = ({ data, title, prevData, onRowClick, type, selectedItem, filt
         // Use different ID fields based on the type of data
         let id;
         switch (type) {
-          case 'ad':
+          case 'ads':
             id = row.ad_id;
             break;
           case 'adset':
@@ -63,6 +63,27 @@ const DataTable = ({ data, title, prevData, onRowClick, type, selectedItem, filt
         }
         onRowClick(id, type, row);
       }
+    };
+
+    const isRowSelected = (row) => {
+      let rowId;
+      switch (type) {
+        case 'ad':
+          rowId = row.ad_id;
+          break;
+        case 'adset':
+          rowId = row.adset_id;
+          break;
+        case 'campaign':
+          rowId = row.campaign_id;
+          break;
+        case 'account':
+          rowId = row.account_id;
+          break;
+        default:
+          rowId = row.id;
+      }
+      return selectedItem.id === rowId && selectedItem.type === type;
     };
 
     const handleSubRowClick = (event, subRow) => {
@@ -289,6 +310,8 @@ const getColumnConfig = (type) => {
         { key: 'order_count', label: 'PUR' },
         { key: 'total_revenue', label: 'Revenue' },
         { key: 'adset_id', label: 'Adset ID' },
+        { key: 'account_id', label: 'Acc Name' },
+
         // Add other columns specific to 'adset'
       ];
     case 'ads':
@@ -307,6 +330,7 @@ const getColumnConfig = (type) => {
         { key: 'order_count', label: 'PUR' },
         { key: 'total_revenue', label: 'Revenue' },
         { key: 'ad_id', label: 'Ads ID' },
+
         // Add other columns specific to 'ads'
       ];
     default:
@@ -419,12 +443,12 @@ return (
         </thead>
         <tbody>
           {sortedAndFilteredData.map((row, idx) => (
-            <tr key={idx} onClick={() => handleRowClick(row)} className={idx % 2 === 0 ? 'bg-white dark:bg-gray-400' : 'bg-gray-50 dark:bg-gray-300'}>
+            <tr key={idx} onClick={() => handleRowClick(row)}  className={`${isRowSelected(row) ? 'selected-row ' : ''}${idx % 2 === 0 ? 'bg-white dark:bg-gray-400' : 'bg-gray-50 dark:bg-gray-300'}`}>
               {columns.map(({ key }) => {
                 const val = row[key];
                 const changeIndicator = prevData && prevData[idx] ? getChangeIndicator(key, val, prevData[idx][key]) : null;
                 return (
-                  <td key={key} className={`py-4 text-center px-6 ${isStickyColumn(key) ? 'sticky left-0 sticky-column' : ''} ${idx % 2 === 0 ? 'dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-900'}`}>
+                  <td key={key} className={`py-4 px-6 ${isStickyColumn(key) ? 'sticky left-0 sticky-column' : ''} ${idx % 2 === 0 ? 'dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-900'}`}>
                     {formatValue(key, val)}
                     {changeIndicator && <span className="change-indicator">{changeIndicator}</span>}
                   </td>
@@ -446,30 +470,111 @@ return (
 
       console.log("Data received in Fb component:", data);
 
-      const handleRowClick = (id, type, rowData) => {
-
-        setSelectedItem({ id, type });
+      const handleRowClick = (id, type) => {
+        if (selectedItem.id === id && selectedItem.type === type) {
+          // If the same row is clicked again, reset the selection
+          setSelectedItem({ id: null, type: null });
+        } else {
+          // Set the selected item
+          setSelectedItem({ id, type });
+        }
+        console.log("Toggled Item:", { id, type });
       };
 
       const handleSubRowClick = (id, type, rowData) => {
         setSelectedSubItem({ id, type });
       };
+
+      const filteredAccountsData = useMemo(() => {
+        if (selectedItem.type === 'account') {
+          return data.adaccountsData;
+        }
+        let accountId;
+        switch (selectedItem.type) {
+          case 'campaign':
+            accountId = data.campaignsData.find(c => c.campaign_id === selectedItem.id)?.account_id;
+            break;
+          case 'adset':
+            accountId = data.adsetsData.find(a => a.adset_id === selectedItem.id)?.account_id;
+            break;
+          case 'ads':
+            accountId = data.adsData.find(a => a.ad_id === selectedItem.id)?.account_id;
+            break;
+          default:
+            return data.adaccountsData;
+        }
+        return data.adaccountsData.filter(account => account.account_id === accountId);
+      }, [selectedItem, data.adaccountsData, data.campaignsData, data.adsetsData, data.adsData]);
+      
+      const filteredCampaignsData = useMemo(() => {
+        if (selectedItem.type === 'campaign') {
+          return data.campaignsData;
+        }
+        switch (selectedItem.type) {
+          case 'account':
+            return data.campaignsData.filter(campaign => campaign.account_id === selectedItem.id);
+          case 'adset':
+            return data.campaignsData.filter(campaign => campaign.campaign_id === data.adsetsData.find(adset => adset.adset_id === selectedItem.id)?.campaign_id);
+          case 'ads':
+            const adsetForAd = data.adsData.find(ad => ad.ad_id === selectedItem.id)?.adset_id;
+            const campaignIdForAd = data.adsetsData.find(adset => adset.adset_id === adsetForAd)?.campaign_id;
+            return data.campaignsData.filter(campaign => campaign.campaign_id === campaignIdForAd);
+          default:
+            return data.campaignsData;
+        }
+      }, [selectedItem, data.campaignsData, data.adsetsData, data.adsData]);
+      
+      const filteredAdsetsData = useMemo(() => {
+        if (selectedItem.type === 'adset') {
+          return data.adsetsData;
+        }
+        switch (selectedItem.type) {
+          case 'account':
+            return data.adsetsData.filter(adset => adset.account_id === selectedItem.id);
+          case 'campaign':
+            return data.adsetsData.filter(adset => adset.campaign_id === selectedItem.id);
+          case 'ads':
+            return data.adsetsData.filter(adset => adset.adset_id === data.adsData.find(ad => ad.ad_id === selectedItem.id)?.adset_id);
+          default:
+            return data.adsetsData;
+        }
+      }, [selectedItem, data.adsetsData, data.adsData]);
+      
+      const filteredAdsData = useMemo(() => {
+        if (selectedItem.type === 'ads') {
+          return data.adsData;
+        }
+        switch (selectedItem.type) {
+          case 'account':
+            return data.adsData.filter(ad => ad.account_id === selectedItem.id);
+          case 'campaign':
+            return data.adsData.filter(ad => ad.campaign_id === selectedItem.id);
+          case 'adset':
+            return data.adsData.filter(ad => ad.adset_id === selectedItem.id);
+          default:
+            return data.adsData;
+        }
+      }, [selectedItem, data.adsData]);
+      
+      
       
 
 
       const filteredData = useMemo(() => {
+        if (!selectedItem.id) return data; // Show all data if no selection
+      
         switch (selectedItem.type) {
           case 'campaign':
             return data.adsetsData.filter(item => item.campaign_id === selectedItem.id);
           case 'adset':
             return data.adsData.filter(item => item.adset_id === selectedItem.id);
-          case'account':
-          return data.campaignsData.filter(item => item.account_id === selectedItem.id);
-
-            default:
-            return [];
+          case 'account':
+            return data.campaignsData.filter(item => item.account_id === selectedItem.id);
+          default:
+            return data;
         }
       }, [selectedItem, data]);
+      
 
       const filteredSubData = useMemo(() => {
         if (!selectedSubItem.id) return [];
@@ -500,30 +605,52 @@ return (
             return <Spinner />;
           }
 
-    return (
-      <div>
-      <SummaryCardsContainer adaccountsData={adaccountsData} />
-      <div className="container mx-auto p-4">
-      <div className="my-4">
-        {adaccountsData.length > 0 ? <DataTable data={adaccountsData} title="Ad Accounts Data" onRowClick={handleRowClick} onSubRowClick={handleSubRowClick} type="account"  selectedItem={selectedItem} filteredData={filteredData} selectedSubItem={selectedSubItem} filteredSubData={filteredSubData} /> : <p>No data available.</p>}
-      </div>
-
-      <div className="my-4">
-        {campaignsData.length > 0 ? <DataTable data={campaignsData} title="Campaigns Data" onRowClick={handleRowClick} onSubRowClick={handleSubRowClick}  type="campaign" selectedItem={selectedItem} filteredData={filteredData} setSelectedSubItem={selectedSubItem} filteredSubData={filteredSubData} /> : <p>No data available.</p>}
-      </div>
-
-      <div className="my-4">
-        {adsetsData.length > 0 ? <DataTable data={adsetsData}  onRowClick={handleRowClick} onSubRowClick={handleSubRowClick} title="Ad Sets Data" type="adset" selectedItem={selectedItem} filteredData={filteredData} selectedSubItem={selectedSubItem} filteredSubData={filteredSubData}/> : <p>No data available.</p>}
-      </div>
-
-      <div className="my-4">
-        {adsetsData.length > 0 ? <DataTable data={adsData}  onRowClick={handleRowClick} onSubRowClick={handleSubRowClick} title="Ads Data" type="ads" selectedItem={selectedItem} filteredData={filteredData} selectedSubItem={selectedSubItem} filteredSubData={filteredSubData}/> : <p>No data available.</p>}
-      </div>
-
-    
-      </div>
-    </div>
-  );
-};
+          return (
+            <div>
+              <SummaryCardsContainer adaccountsData={adaccountsData} />
+              <div className="container mx-auto p-4">
+                <div className="my-4">
+                  <DataTable 
+                    data={filteredAccountsData} 
+                    title="Ad Accounts Data" 
+                    onRowClick={handleRowClick} 
+                    type="account" 
+                    selectedItem={selectedItem}
+                  />
+                </div>
+          
+                <div className="my-4">
+                  <DataTable 
+                    data={filteredCampaignsData} 
+                    title="Campaigns Data" 
+                    onRowClick={handleRowClick} 
+                    type="campaign" 
+                    selectedItem={selectedItem}
+                  />
+                </div>
+          
+                <div className="my-4">
+                  <DataTable 
+                    data={filteredAdsetsData} 
+                    title="Ad Sets Data" 
+                    onRowClick={handleRowClick} 
+                    type="adset" 
+                    selectedItem={selectedItem}
+                  />
+                </div>
+          
+                <div className="my-4">
+                  <DataTable 
+                    data={filteredAdsData} 
+                    title="Ads Data" 
+                    onRowClick={handleRowClick} 
+                    type="ads" 
+                    selectedItem={selectedItem}
+                  />
+                </div>
+              </div>
+            </div>
+          );
+          };          
 
 export default Fb;
