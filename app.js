@@ -1225,10 +1225,12 @@ app.get('/api/facebook-data', async (req, res) => {
   
   try {
 
-    const adsQuery = `
+   const adsQuery = `
     SELECT ad_id, 
            ad_name,
            adset_id,
+           campaign_id,
+           account_id,
            data_set,
            SUM(impressions) as total_impressions, 
            SUM(clicks) as total_clicks, 
@@ -1238,7 +1240,7 @@ app.get('/api/facebook-data', async (req, res) => {
            AVG(ctr) as average_ctr
     FROM facebook_ads 
     WHERE date_start BETWEEN $1 AND $2 
-    GROUP BY ad_id, ad_name, adset_id, data_set`;
+    GROUP BY ad_id, ad_name, adset_id, data_set, campaign_id, account_id`;
   
 
     const campaignsQuery = `
@@ -1261,6 +1263,7 @@ app.get('/api/facebook-data', async (req, res) => {
         SELECT adset_id, 
                adset_name,
                campaign_id,
+               account_id,
                data_set,
         SUM(impressions) as total_impressions, 
         SUM(clicks) as total_clicks, 
@@ -1270,7 +1273,7 @@ app.get('/api/facebook-data', async (req, res) => {
         AVG(ctr) as average_ctr
   FROM facebook_adsets
   WHERE date_start BETWEEN $1 AND $2 
-  GROUP BY adset_id, adset_name, campaign_id, data_set`;
+  GROUP BY adset_id, adset_name, campaign_id, account_id, data_set`;
 
   const adaccountsQuery = `
   SELECT account_id, 
@@ -1283,6 +1286,7 @@ app.get('/api/facebook-data', async (req, res) => {
 FROM facebook_adaccounts
 WHERE date_start BETWEEN $1 AND $2 
 GROUP BY account_id`;
+
 
 
         const campaignIdsQuery = `
