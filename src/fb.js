@@ -326,7 +326,7 @@ const columns = useMemo(() => getColumnConfig(type), [type]);
 
 
 return (
-  <div className="relative shadow-md sm:rounded-lg">
+  <div className="relative sm:rounded-lg">
     <div className="flex justify-between mb-4">
       <div>
         <h1 className="text-2xl font-semibold">{title}</h1>
