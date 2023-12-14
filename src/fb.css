@@ -12,3 +12,7 @@
     overflow: visible;
     white-space: normal;
 }
+
+.selected-row {
+    border: 1px solid white;
+  }
