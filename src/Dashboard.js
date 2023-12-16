@@ -88,7 +88,7 @@ function SalesSummary({ isUpdating, ordersCount, todaysSales, averageOrderValue,
       </div>
       <div className={`mt-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 ${updateClass}`}>
         <SummaryCard title="Total Sales" value={formatCurrency(todaysSales)} />
-        <SummaryCard title="Today's Orders" value={ordersCount || 'Loading...'} />
+        <SummaryCard title="Total Orders" value={ordersCount || 'Loading...'} />
         <SummaryCard title="Average Order Value" value={formatCurrency(averageOrderValue)} />
         <SummaryCard title="Largest Value of Order" value={formatCurrency(largestOrder)} />
       </div>
