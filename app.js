@@ -25,10 +25,11 @@ async function initializeApp() {
       saveLastOrderIdToFile(lastFetchedOrderId);
     }
 
+
     // Fetch and handle new orders on startup
     const newOrders = await fetchShopifyOrders('admin/api/2023-10/orders.json', {
       status: 'any',
-      fields: 'created_at,id,total_price,current_total_price,current_total_tax,total_tax,currency,order_number,refunds,note,note_attributes,tags',
+      fields: 'created_at,id,total_price,current_total_price,current_total_tax,total_tax,currency,order_number,refunds,note,note_attributes,tags,line_items',
     }, lastFetchedOrderId);
 
     if (newOrders.length > 0) {
@@ -52,8 +53,7 @@ const pool = new Pool({
   host: process.env.DB_HOST,
   database: process.env.DB_DATABASE,
   password: process.env.DB_PASSWORD,
-  port: process.env.DB_PORT
-
+  port: process.env.DB_PORT,
 });
 
 // Middleware to parse JSON bodies
@@ -93,26 +93,55 @@ function readLastOrderIdFromFile() {
   return 0; // Default to 0 if file doesn't exist
 }
 
+function extractVariantIds(order) {
+  return order.line_items.map(item => item.variant_id);
+}
+
+// Function to fetch costs for a list of variant IDs
+async function fetchCostsForVariants(variantIds) {
+  const placeholders = variantIds.map((_, index) => `$${index + 1}`).join(', ');
+  const query = `SELECT variant_id, cost FROM nooro_products WHERE variant_id IN (${placeholders})`;
+  const res = await pool.query(query, variantIds);
+  return res.rows.reduce((acc, row) => {
+    acc[row.variant_id] = row.cost;
+    return acc;
+  }, {});
+}
+
 
 async function insertOrderToDatabase(order) {
   const utm_campaign = order.note_attributes.find(attr => attr.name === 'utm_campaign')?.value;
   const utm_content = order.note_attributes.find(attr => attr.name === 'utm_content')?.value;
   const utm_term = order.note_attributes.find(attr => attr.name === 'utm_term')?.value;
 
+  const variantIds = extractVariantIds(order);
+  const costs = await fetchCostsForVariants(variantIds);
+
+  // Calculate total cost of the order
+  let totalCost = 0;
+  if (order.line_items && Array.isArray(order.line_items)) {
+    order.line_items.forEach(item => {
+      const itemCost = costs[item.variant_id] || 0;
+      totalCost += itemCost * (item.quantity || 0);
+    });
+  } else {
+    // Log for debugging purposes
+    console.log("Order without line_items or not an array:", order);
+  }
+
   const query = `INSERT INTO shopify_orders (
       shopify_order_id, created_at, total_price, current_total_price, 
       current_total_tax, total_tax, currency, order_number, 
       refunds, note, note_attributes, tags, status,
-      utm_campaign, utm_content, utm_term
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+      utm_campaign, utm_content, utm_term, line_items, total_cost
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
     ON CONFLICT (shopify_order_id) DO NOTHING;`;
 
   const values = [
     order.id, order.created_at, order.total_price, order.current_total_price,
     order.current_total_tax, order.total_tax, order.currency, order.order_number,
     JSON.stringify(order.refunds), order.note, JSON.stringify(order.note_attributes), order.tags,
-    'active', // assuming default status is 'active', modify as needed
-    utm_campaign, utm_content, utm_term
+    'active', utm_campaign, utm_content, utm_term, JSON.stringify(order.line_items), totalCost
   ];
 
   try {
@@ -121,6 +150,7 @@ async function insertOrderToDatabase(order) {
     console.error('Error inserting order into database:', err);
   }
 }
+
 
 
 
@@ -170,7 +200,7 @@ setInterval(async () => {
 
     const newOrders = await fetchShopifyOrders('admin/api/2023-10/orders.json', {
       status: 'any',
-      fields: 'video_3_sec_watched_actions,created_at,id,total_price,current_total_price,current_total_tax,total_tax,currency,order_number,refunds,note,note_attributes,tags',
+      fields: 'video_3_sec_watched_actions,created_at,id,total_price,current_total_price,current_total_tax,total_tax,currency,order_number,refunds,note,note_attributes,tags,line_items',
     }, lastFetchedOrderId);
 
     if (newOrders.length > 0) {
@@ -182,12 +212,16 @@ setInterval(async () => {
       // Update the lastFetchedOrderId and save it to the file
       lastFetchedOrderId = newOrders[newOrders.length - 1].id;
       saveLastOrderIdToFile(lastFetchedOrderId); // Save the updated lastFetchedOrderId
+      
+      // Now update the total costs of all orders, including the newly fetched ones
+      await updateAllOrderCosts(lastFetchedOrderId);
     }
     console.log(`Fetched ${newOrders.length} new orders.`);
   } catch (error) {
     console.error('Error in scheduled order fetching:', error);
   }
-}, 60000);
+}, 60000); // Runs every minute
+
 
 
 
@@ -213,6 +247,13 @@ async function fetchShopifyOrders(endpoint, initialParams, sinceId = 0) {
           'X-Shopify-Access-Token': process.env.SHOPIFY_ACCESS_TOKEN,
         },
       });
+
+      console.log(`Fetched ${response.data.orders.length} orders.`); // Log the count of fetched orders
+      for (const order of response.data.orders) {
+          // Log a summary of each order's line_items immediately after fetching
+          console.log(`Order ID: ${order.id}, Line Items Count: ${order.line_items ? order.line_items.length : 'None'}`);
+      }
+
 
       allOrders = allOrders.concat(response.data.orders);
 
@@ -242,6 +283,72 @@ async function fetchShopifyOrders(endpoint, initialParams, sinceId = 0) {
   console.log(`Total orders fetched from Shopify: ${allOrders.length}`);
   return allOrders;
 }
+
+
+function extractVariantIds(order) {
+  // Check if line_items exists and is not null
+  return order.line_items ? order.line_items.map(item => item.variant_id) : [];
+}
+
+async function fetchCostsForVariants(variantIds) {
+    if (variantIds.length === 0) {
+        return {}; // Return empty object if no variantIds are provided
+    }
+    const placeholders = variantIds.map((_, index) => `$${index + 1}`).join(', ');
+    const query = `SELECT variant_id, cost FROM nooro_products WHERE variant_id IN (${placeholders})`;
+    const res = await pool.query(query, variantIds);
+    return res.rows.reduce((acc, row) => {
+      acc[row.variant_id] = row.cost;
+      return acc;
+    }, {});
+}
+
+async function fetchAllOrders(lastFetchedOrderId) {
+  const query = `
+    SELECT * FROM shopify_orders
+    WHERE shopify_order_id > $1;`; // Fetch only orders with ID greater than lastFetchedOrderId
+  const values = [lastFetchedOrderId];
+  const res = await pool.query(query, values);
+  return res.rows;
+}
+
+
+async function updateOrderCost(order, costs) {
+  let totalCost = 0;
+
+  if (order.line_items && Array.isArray(order.line_items)) {
+    for (const item of order.line_items) {
+      const itemCost = costs[item.variant_id] || 0;
+      const itemQuantity = item.quantity || 0;
+      totalCost += itemCost * itemQuantity;
+
+      // Log details of each line item
+    }
+  }
+
+  const updateQuery = 'UPDATE shopify_orders SET total_cost = $1 WHERE shopify_order_id = $2;';
+  await pool.query(updateQuery, [totalCost, order.shopify_order_id]);
+  console.log(`Updated order ${order.shopify_order_id} with total cost: ${totalCost}`);
+  return totalCost; // Return totalCost for logging
+}
+
+
+async function updateAllOrderCosts(lastFetchedOrderId) {
+  try {
+    const orders = await fetchAllOrders(lastFetchedOrderId);
+    for (const order of orders) {
+      const variantIds = extractVariantIds(order);
+      const costs = await fetchCostsForVariants(variantIds);
+      const totalCost = await updateOrderCost(order, costs); // Capture totalCost for logging
+      console.log(`Updated order ${order.shopify_order_id} with total cost ${totalCost}`);
+    }
+    console.log('All orders have been updated.');
+  } catch (error) {
+    console.error('Error updating order costs:', error);
+  }
+}
+
+
 
 app.get('/api/todays-orders', async (req, res) => {
   try {
@@ -327,7 +434,6 @@ app.get('/api/todays-orders', async (req, res) => {
       });}
     });
 
-    
 
     // Calculate total revenue for today's orders
     const todaysRevenue = todaysOrders.reduce((total, order) => {
@@ -365,6 +471,173 @@ app.get('/api/todays-orders', async (req, res) => {
     res.status(500).send('Error fetching orders from Shopify');
   }
 });
+
+
+// Example usage
+
+async function fetchVariantIds() {
+  try {
+    const query = `
+      SELECT
+        jsonb_array_elements(line_items)->>'variant_id' AS variant_id,
+        jsonb_array_elements(line_items)->>'product_id' AS product_id,
+        jsonb_array_elements(line_items)->>'title' AS title
+      FROM 
+        shopify_orders 
+      ORDER BY 
+        id DESC 
+      LIMIT 50;
+    `;
+    const res = await pool.query(query);
+    return res.rows.map(row => ({ 
+      variantId: row.variant_id, 
+      productId: row.product_id,
+      title: row.title
+    }));
+    } catch (error) {
+    console.error('Error fetching variant IDs from database:', error);
+    throw error;
+  }
+}
+
+async function fetchInventoryItemIds(variantProductPairs) {
+  try {
+    const inventoryItems = [];
+    for (const pair of variantProductPairs) {
+      // Skip if title is 'Tip' or variantId is null
+      if (pair.title === 'Tip' || pair.variantId === null) {
+        console.log(`Skipping variant with title 'Tip' or null variantId.`);
+        continue;
+      }
+
+      try {
+        const variantResponse = await axios.get(`https://${process.env.SHOPIFY_SHOP_DOMAIN}/admin/api/2023-10/variants/${pair.variantId}.json`, {
+          headers: {
+            'X-Shopify-Access-Token': process.env.SHOPIFY_ACCESS_TOKEN,
+          },
+        });
+        inventoryItems.push({
+          variantId: pair.variantId,
+          productId: pair.productId,
+          title: pair.title,
+          inventoryItemId: variantResponse.data.variant.inventory_item_id
+        });
+      } catch (innerError) {
+        console.error(`Error fetching inventory item ID for variant ${pair.variantId}:`, innerError);
+        // Continue to the next iteration even if there's an error
+      }
+    }
+    return inventoryItems;
+  } catch (error) {
+    console.error('Error in fetchInventoryItemIds:', error);
+    throw error;
+  }
+}
+
+
+
+async function fetchInventoryItemDetails(inventoryItems) {
+  const detailedInventory = [];
+  for (const item of inventoryItems) {
+    try {
+      const inventoryItemResponse = await axios.get(`https://${process.env.SHOPIFY_SHOP_DOMAIN}/admin/api/2023-10/inventory_items/${item.inventoryItemId}.json`, {
+        headers: {
+          'X-Shopify-Access-Token': process.env.SHOPIFY_ACCESS_TOKEN,
+        },
+      });
+
+      const detail = inventoryItemResponse.data.inventory_item; // Corrected reference
+
+      detailedInventory.push({
+        variantId: item.variantId,
+        productId: item.productId,
+        title: item.title,
+        inventoryItemId: item.inventoryItemId,
+        inventorySku: detail.sku,
+        createdAt: detail.created_at,
+        updatedAt: detail.updated_at,
+        requiresShipping: detail.requires_shipping,
+        cost: detail.cost,
+        countryCodeOfOrigin: detail.country_code_of_origin,
+        provinceCodeOfOrigin: detail.province_code_of_origin,
+        harmonizedSystemCode: detail.harmonized_system_code,
+        tracked: detail.tracked,
+        adminGraphqlApiId: detail.admin_graphql_api_id
+      });
+    } catch (error) {
+      console.error(`Error fetching inventory item details for item ${item.inventoryItemId}:`, error);
+      // Handle the error as per your policy (skip/continue/stop)
+    }
+  }
+  return detailedInventory;
+}
+
+
+
+async function master() {
+  try {
+    // Fetch variant IDs and log
+    const variantIds = await fetchVariantIds();
+    console.log('Fetched Variant IDs:', variantIds);
+
+    // Fetch inventory items using variant IDs and log
+    const inventoryItems = await fetchInventoryItemIds(variantIds);
+    console.log('Fetched Inventory Items:', inventoryItems);
+
+    // Extract inventory item IDs and log
+    const inventoryItemIds = inventoryItems.map(item => item.inventoryItemId);
+    console.log('Extracted Inventory Item IDs:', inventoryItemIds);
+
+    // Fetch inventory details using inventory item IDs and log
+    const inventoryDetails = await fetchInventoryItemDetails(inventoryItems);
+    console.log('Fetched Inventory Details:', inventoryDetails);
+
+    // Save the fetched data to a file
+    fs.writeFileSync('costData.json', JSON.stringify(inventoryDetails, null, 2));
+    console.log('Cost data saved to costData.json');
+
+    for (const item of inventoryDetails) {
+      const upsertQuery = `
+        INSERT INTO nooro_products (
+          variant_id, product_id, title, inventory_item_id, 
+          inventory_sku, created_at, updated_at, requires_shipping, 
+          cost, country_code_of_origin, province_code_of_origin, 
+          harmonized_system_code, tracked, admin_graphql_api_id
+        ) VALUES (
+          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14
+        )
+        ON CONFLICT (inventory_item_id) DO UPDATE SET
+          variant_id = EXCLUDED.variant_id,
+          product_id = EXCLUDED.product_id,
+          title = EXCLUDED.title,
+          inventory_sku = EXCLUDED.inventory_sku,
+          created_at = EXCLUDED.created_at,
+          updated_at = EXCLUDED.updated_at,
+          requires_shipping = EXCLUDED.requires_shipping,
+          cost = EXCLUDED.cost,
+          country_code_of_origin = EXCLUDED.country_code_of_origin,
+          province_code_of_origin = EXCLUDED.province_code_of_origin,
+          harmonized_system_code = EXCLUDED.harmonized_system_code,
+          tracked = EXCLUDED.tracked,
+          admin_graphql_api_id = EXCLUDED.admin_graphql_api_id
+      `;
+
+      await pool.query(upsertQuery, [
+        item.variantId, item.productId, item.title, item.inventoryItemId,
+        item.inventorySku, item.createdAt, item.updatedAt, item.requiresShipping,
+        item.cost, item.countryCodeOfOrigin, item.provinceCodeOfOrigin,
+        item.harmonizedSystemCode, item.tracked, item.adminGraphqlApiId
+      ]);
+    }
+
+    console.log('All data saved or updated in the database');
+  } catch (error) {
+    console.error('Error in master function:', error);
+  }
+}
+
+
+
 
 
 app.get('/api/todays-orders-db', async (req, res) => {
