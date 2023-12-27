@@ -615,6 +615,7 @@ return (
             adsetsData, 
             adaccountsData,
             isLoading,
+            totalProfit
         } = data;
     
        
@@ -624,7 +625,7 @@ return (
 
           return (
             <div>
-              <SummaryCardsContainer adaccountsData={adaccountsData} />
+<SummaryCardsContainer adaccountsData={adaccountsData} totalProfit={totalProfit} />
               <div className="container mx-auto p-4">
                 <div className="my-4">
                   <DataTable 
