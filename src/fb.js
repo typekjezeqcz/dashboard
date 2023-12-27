@@ -235,9 +235,9 @@ const removeFilter = (filter, type) => {
         });
     
         // Define which keys correspond to which types of data
-        const currencyFields = ['total_spend', 'total_revenue', 'cpa', 'aov', 'epc', 'average_cpc', 'average_cpm'];
+        const currencyFields = ['total_spend', 'total_revenue', 'profit', 'cpa', 'aov', 'epc', 'cpc', 'average_cpm'];
         const percentageFields = ['average_ctr', 'cvr'];
-        const wholeNumberFields = ['total_impressions', 'total_clicks', 'order_count'];
+        const wholeNumberFields = ['total_impressions', 'unique_clicks', 'order_count'];
         
     if (currencyFields.includes(key)) {
         return currencyFormatter.format(numericValue);
@@ -262,14 +262,15 @@ const getColumnConfig = (type) => {
         { key: 'account_id', label: 'Acc Name' },
         { key: 'total_spend', label: 'Spend' },
         { key: 'roas', label: 'ROAS' },
+        { key: 'profit', label: 'Profit' },
         { key: 'cpa', label: 'CPA' },
         { key: 'aov', label: 'AOV' },
         { key: 'cvr', label: 'CVR' },
         { key: 'epc', label: 'EPC' },
-        { key: 'average_cpc', label: 'CPC' },
+        { key: 'cpc', label: 'CPC' },
         { key: 'average_ctr', label: 'CTR' },
         { key: 'average_cpm', label: 'CPM' },
-        { key: 'total_clicks', label: 'Clicks' },
+        { key: 'unique_clicks', label: 'Clicks' },
         { key: 'order_count', label: 'PUR' },
         { key: 'total_revenue', label: 'Revenue' }
         // Add other columns specific to 'account'
@@ -279,14 +280,15 @@ const getColumnConfig = (type) => {
         { key: 'campaign_name', label: 'Campaign Name' },
         { key: 'total_spend', label: 'Spend' },
         { key: 'roas', label: 'ROAS' },
+        { key: 'profit', label: 'Profit' },
         { key: 'cpa', label: 'CPA' },
         { key: 'aov', label: 'AOV' },
         { key: 'cvr', label: 'CVR' },
         { key: 'epc', label: 'EPC' },
-        { key: 'average_cpc', label: 'CPC' },
+        { key: 'cpc', label: 'CPC' },
         { key: 'average_ctr', label: 'CTR' },
         { key: 'average_cpm', label: 'CPM' },
-        { key: 'total_clicks', label: 'Clicks' },
+        { key: 'unique_clicks', label: 'Clicks' },
         { key: 'order_count', label: 'PUR' },
         { key: 'total_revenue', label: 'Revenue' },
         { key: 'campaign_id', label: 'Campaign ID' },
@@ -299,14 +301,15 @@ const getColumnConfig = (type) => {
         { key: 'adset_name', label: 'Adset Name' },
         { key: 'total_spend', label: 'Spend' },
         { key: 'roas', label: 'ROAS' },
+        { key: 'profit', label: 'Profit' },
         { key: 'cpa', label: 'CPA' },
         { key: 'aov', label: 'AOV' },
         { key: 'cvr', label: 'CVR' },
         { key: 'epc', label: 'EPC' },
-        { key: 'average_cpc', label: 'CPC' },
+        { key: 'cpc', label: 'CPC' },
         { key: 'average_ctr', label: 'CTR' },
         { key: 'average_cpm', label: 'CPM' },
-        { key: 'total_clicks', label: 'Clicks' },
+        { key: 'unique_clicks', label: 'Clicks' },
         { key: 'order_count', label: 'PUR' },
         { key: 'total_revenue', label: 'Revenue' },
         { key: 'adset_id', label: 'Adset ID' },
@@ -323,10 +326,10 @@ const getColumnConfig = (type) => {
         { key: 'aov', label: 'AOV' },
         { key: 'cvr', label: 'CVR' },
         { key: 'epc', label: 'EPC' },
-        { key: 'average_cpc', label: 'CPC' },
+        { key: 'cpc', label: 'CPC' },
         { key: 'average_ctr', label: 'CTR' },
         { key: 'average_cpm', label: 'CPM' },
-        { key: 'total_clicks', label: 'Clicks' },
+        { key: 'unique_clicks', label: 'Clicks' },
         { key: 'order_count', label: 'PUR' },
         { key: 'total_revenue', label: 'Revenue' },
         { key: 'ad_id', label: 'Ads ID' },
@@ -427,36 +430,47 @@ return (
 
     <div className="overflow-x-auto" style={{ maxHeight: `600px` }}>
       <table className="w-full text-sm text-left text-white dark:text-white">
-        <thead className="bg-white dark:bg-gray-700 shadow sticky top-0 z-10">
-          <tr>
-            {columns.map(({ key, label }) => (
-              <th
-                key={key}
-                onClick={() => requestSort(key)}
-                className={`py-3 px-6 text-center cursor-pointer z-10 ${isStickyColumn(key) ? 'sticky bg-gray-700 left-0' : ''}`}
-              >
-                {label}
-                {sortConfig.key === key ? (sortConfig.direction === 'ascending' ? ' ↑' : ' ↓') : null}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {sortedAndFilteredData.map((row, idx) => (
-            <tr key={idx} onClick={() => handleRowClick(row)}  className={`${isRowSelected(row) ? 'selected-row ' : ''}${idx % 2 === 0 ? 'bg-white dark:bg-gray-400' : 'bg-gray-50 dark:bg-gray-300'}`}>
-              {columns.map(({ key }) => {
-                const val = row[key];
-                const changeIndicator = prevData && prevData[idx] ? getChangeIndicator(key, val, prevData[idx][key]) : null;
-                return (
-                  <td key={key} className={`py-4 px-6 ${isStickyColumn(key) ? 'sticky left-0 sticky-column' : ''} ${idx % 2 === 0 ? 'dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-900'}`}>
-                    {formatValue(key, val)}
-                    {changeIndicator && <span className="change-indicator">{changeIndicator}</span>}
-                  </td>
-                );
-              })}
-            </tr>
-          ))}
-        </tbody>
+      <thead className="bg-white dark:bg-gray-700 shadow sticky top-0 z-10">
+  <tr>
+    {columns.map(({ key, label }) => (
+      <th
+        key={key}
+        onClick={() => requestSort(key)}
+        className={`py-3 px-6 cursor-pointer z-10 ${
+          ['campaign_name', 'adset_name', 'ad_name'].includes(key) ? "text-left" : "text-center"
+        }`}
+      >
+        <div className="flex justify-center items-center space-x-1">
+          <span>{label}</span>
+          {sortConfig.key === key && (
+            <span>{sortConfig.direction === 'ascending' ? '↑' : '↓'}</span>
+          )}
+        </div>
+      </th>
+    ))}
+  </tr>
+</thead>
+
+<tbody>
+  {sortedAndFilteredData.map((row, idx) => (
+    <tr key={idx} onClick={() => handleRowClick(row)} className={`${isRowSelected(row) ? 'selected-row ' : ''}${idx % 2 === 0 ? 'bg-white dark:bg-gray-400' : 'bg-gray-50 dark:bg-gray-300'}`}>
+      {columns.map(({ key }) => {
+        const val = row[key];
+        const changeIndicator = prevData && prevData[idx] ? getChangeIndicator(key, val, prevData[idx][key]) : null;
+        return (
+          <td key={key} className={`py-4 px-6 ${
+            ['campaign_name', 'adset_name', 'ad_name'].includes(key) ? "text-left" : "text-center"
+          } ${idx % 2 === 0 ? 'dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-900'}`}>
+            {formatValue(key, val)}
+            {changeIndicator && <span className="change-indicator">{changeIndicator}</span>}
+          </td>
+        );
+      })}
+    </tr>
+  ))}
+</tbody>
+
+
       </table>
     </div>
   </div>
