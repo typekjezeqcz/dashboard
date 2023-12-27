@@ -1709,9 +1709,7 @@ GROUP BY account_id`;
           return [];
         }
       };
-      
-      
-      
+
       
       for (const account of adaccounts.rows) {
         let totalRevenue = 0;
@@ -1754,10 +1752,12 @@ GROUP BY account_id`;
         calculateRoasAndOrderCount(adsetsResult.rows, 'utm_term', 'adset_id'),
         calculateRoasAndOrderCount(campaignsResult.rows, 'utm_campaign', 'campaign_id')
       ]);
+
+
+
+
       
     
-    
-
       const calculateCpaAndCpc = (dataRows) => {
         for (const data of dataRows) {
           // Calculate CPA
@@ -1836,6 +1836,7 @@ GROUP BY account_id`;
       const adAccountsWithEpc = calculateEpc(adaccounts.rows);
 
 
+
       const calculateProfit = (dataRows) => {
         for (const data of dataRows) {
           const revenueAfterCosts = data.total_revenue * 0.86;
@@ -1845,13 +1846,24 @@ GROUP BY account_id`;
       };
       
 
-
       const adsWithProfit = calculateProfit(adsWithEpc);
       const adsetsWithProfit = calculateProfit(adsetsWithEpc);
       const campaignsWithProfit = calculateProfit(campaignsWithEpc);
       const adAccountsWithProfit = calculateProfit(adAccountsWithEpc);
 
 
+      let totalRevenue = 0;
+      let totalCost = 0;
+      let totalAdSpend = 0;
+      
+      // Loop through all accounts to accumulate totals
+      for (const account of adAccountsWithProfit) {
+        totalRevenue += account.total_revenue * 0.86;  // Adjusting revenue with the 0.86 factor
+        totalCost += account.total_cost;  // Accumulating total costs
+        totalAdSpend += account.total_spend;  // Accumulating total ad spend
+      }
+
+      const totalProfit = totalRevenue - totalCost - totalAdSpend;
 
 
       res.json({
@@ -1859,6 +1871,7 @@ GROUP BY account_id`;
         campaigns: campaignsWithProfit,
         adsets: adsetsWithProfit,
         adaccounts: adAccountsWithProfit,
+        totalProfit: totalProfit 
       });
   } catch (error) {
       console.error('Error fetching data:', error);
