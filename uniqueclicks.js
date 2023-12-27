@@ -91,10 +91,10 @@ async function updateAdWithUniqueClicks(adId, uniqueClicks) {
 // Main function to fetch and update ads with unique clicks
 async function updateAdsDaily() {
     const ads = await fetchAllAds();
-    const startDate = moment({ year: moment().year(), month: 10, date: 1 }); // November 1st of the current year
-    const endDate = moment(); // until today
+    const startDate = moment({ year: moment().year(), month: 11, date: 27 }); // December 27th of the current year
+    const endDate = moment({ year: moment().year(), month: 10, date: 1 }); // November 1st of the current year
 
-    for (let date = startDate.clone(); date.isBefore(endDate); date.add(1, 'days')) {
+    for (let date = startDate.clone(); date.isSameOrAfter(endDate); date.subtract(1, 'days')) {
         const dateString = date.format("YYYY-MM-DD");
         
         // Check if any ads have time_database that matches the current date
