@@ -12,6 +12,7 @@ import { set } from 'date-fns';
 const Together = () => {
     const timezone = 'America/Los_Angeles';
     const todayLA = moment().tz(timezone).startOf('day').toDate();
+    
     const [startDate, setStartDate] = useState(todayLA);
     const [endDate, setEndDate] = useState(todayLA);
     const [userRole, setUserRole] = useState('');
@@ -78,6 +79,7 @@ const Together = () => {
                 adsetsData: responseFb.data.adsets,
                 adaccountsData: responseFb.data.adaccounts,
                 isLoading: false,
+                totalProfit: responseFb.data.totalProfit, // Adding totalProfit here
             });
             setFetchVersion(prevVersion => prevVersion + 1);
             setPrevFbData(fbData);
@@ -98,29 +100,30 @@ const Together = () => {
         <Header userRole={userRole} />
         <div className="container mx-auto px-6 py-4">
             <div className="sticky top-0 pt-2 pb-2 bg-white z-20">
-                <div className="flex max-w-6xl justify-end gap-3 mb-4">
-                    <DateSelector setStartDate={setStartDate} setEndDate={setEndDate} />
-                    <div className="flex gap-2">
-                      <DatePicker
-                          selected={startDate}
-                          onChange={date => setStartDate(date)}
-                          className="p-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-300 focus:border-blue-300"
-                          dateFormat="yyyy-MM-dd"
-                      />
-                      <DatePicker
-                          selected={endDate}
-                          onChange={date => setEndDate(date)}
-                          className="p-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-300 focus:border-blue-300"
-                          dateFormat="yyyy-MM-dd"
-                      />
-                    </div>
-                    <button
-                        onClick={fetchData}
-                        className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg shadow transition duration-300 ease-in-out"
-                    >
-                        Refresh Data
-                    </button>
-                </div>
+            <div className="flex flex-wrap justify-between md:justify-end max-w-6xl gap-3 mb-4">
+     <DateSelector setStartDate={setStartDate}     setEndDate={setEndDate} />
+    <div className="flex gap-2">
+      <DatePicker
+          selected={startDate}
+          onChange={date => setStartDate(date)}
+          className="p-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-300 focus:border-blue-300 w-full md:w-auto"
+          dateFormat="yyyy-MM-dd"
+      />
+      <DatePicker
+          selected={endDate}
+          onChange={date => setEndDate(date)}
+          className="p-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-300 focus:border-blue-300 w-full md:w-auto"
+          dateFormat="yyyy-MM-dd"
+      />
+    </div>
+    <button
+        onClick={fetchData}
+        className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg shadow transition duration-300 ease-in-out"
+    >
+        Refresh Data
+    </button>
+</div>
+
             </div>
             <Dashboard data={dashboardData} />
             <Fb data={fbData} prevData={prevFbData}/>
