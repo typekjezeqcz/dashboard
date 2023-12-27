@@ -1498,7 +1498,7 @@ app.get('/api/facebook-data', async (req, res) => {
   
   try {
 
-   const adsQuery = `
+    const adsQuery = `
     SELECT ad_id, 
            ad_name,
            adset_id,
@@ -1508,9 +1508,9 @@ app.get('/api/facebook-data', async (req, res) => {
            SUM(impressions) as total_impressions, 
            SUM(clicks) as total_clicks, 
            SUM(spend) as total_spend,
-           AVG(cpc) as average_cpc, 
            AVG(cpm) as average_cpm,
-           AVG(ctr) as average_ctr
+           AVG(ctr) as average_ctr,
+           SUM(unique_clicks) as unique_clicks
     FROM facebook_ads 
     WHERE date_start BETWEEN $1 AND $2 
     GROUP BY ad_id, ad_name, adset_id, data_set, campaign_id, account_id`;
@@ -1524,9 +1524,9 @@ app.get('/api/facebook-data', async (req, res) => {
            SUM(impressions) as total_impressions, 
            SUM(clicks) as total_clicks, 
            SUM(spend) as total_spend,
-           AVG(cpc) as average_cpc, 
            AVG(cpm) as average_cpm,
-           AVG(ctr) as average_ctr
+           AVG(ctr) as average_ctr,
+           SUM(unique_clicks) as unique_clicks
     FROM facebook_campaigns
     WHERE date_start BETWEEN $1 AND $2 
     GROUP BY campaign_id, campaign_name, account_id, data_set`;
@@ -1541,9 +1541,9 @@ app.get('/api/facebook-data', async (req, res) => {
         SUM(impressions) as total_impressions, 
         SUM(clicks) as total_clicks, 
         SUM(spend) as total_spend,
-        AVG(cpc) as average_cpc, 
         AVG(cpm) as average_cpm,
-        AVG(ctr) as average_ctr
+        AVG(ctr) as average_ctr,
+        SUM(unique_clicks) as unique_clicks
   FROM facebook_adsets
   WHERE date_start BETWEEN $1 AND $2 
   GROUP BY adset_id, adset_name, campaign_id, account_id, data_set`;
@@ -1553,13 +1553,12 @@ app.get('/api/facebook-data', async (req, res) => {
   SUM(impressions) as total_impressions, 
   SUM(clicks) as total_clicks, 
   SUM(spend) as total_spend,
-  AVG(cpc) as average_cpc, 
   AVG(cpm) as average_cpm,
-  AVG(ctr) as average_ctr
+  AVG(ctr) as average_ctr,
+  SUM(unique_clicks) as unique_clicks
 FROM facebook_adaccounts
 WHERE date_start BETWEEN $1 AND $2 
 GROUP BY account_id`;
-
 
 
         const campaignIdsQuery = `
@@ -1596,17 +1595,21 @@ GROUP BY account_id`;
       
             // Ensure the query is correctly constructed
             const shopifyDataQuery = `
-              SELECT SUM(total_price) as total_revenue, COUNT(*) as order_count
-              FROM shopify_orders
-              WHERE ${utmColumn} = $1 AND DATE(created_at) BETWEEN DATE($2) AND DATE($3);`;
-      
+            SELECT SUM(total_price) as total_revenue, 
+                   SUM(total_cost) as total_cost, 
+                   COUNT(*) as order_count
+            FROM shopify_orders
+            WHERE ${utmColumn} = $1 AND DATE(created_at) BETWEEN DATE($2) AND DATE($3);`;
+          
             // Ensure the parameters are correctly passed
             const shopifyDataResult = await pool.query(shopifyDataQuery, [fbId, startDate, endDate]);
             const shopifyData = shopifyDataResult.rows[0];
             const totalRevenue = parseFloat(shopifyData.total_revenue) || 0;
             const orderCount = parseInt(shopifyData.order_count, 10) || 0;
       
+            const totalCost = parseFloat(shopifyData.total_cost) || 0; // Parse total_cost
             obj.total_revenue = totalRevenue;
+            obj.total_cost = totalCost; // Add total_cost to the object
             obj.order_count = orderCount;
             obj.roas = totalRevenue / obj.total_spend;
           }
@@ -1622,28 +1625,39 @@ GROUP BY account_id`;
       
       for (const account of adaccounts.rows) {
         let totalRevenue = 0;
+        let totalCost = 0; // Initialize total cost
         let totalOrderCount = 0; // Initialize total order count
         const campaignIds = campaignIdsByAccount[account.account_id] || [];
         
         for (const campaignId of campaignIds) {
-          const shopifyRevenueQuery = `
-            SELECT SUM(total_price) as total_revenue, COUNT(*) as order_count
-            FROM shopify_orders
-            WHERE utm_campaign = $1 AND DATE(created_at) BETWEEN DATE($2) AND DATE($3)`;
-          
-          const shopifyRevenueResult = await pool.query(shopifyRevenueQuery, [campaignId, startDate, endDate]);
-          const revenue = parseFloat(shopifyRevenueResult.rows[0].total_revenue) || 0;
-          const orderCount = parseInt(shopifyRevenueResult.rows[0].order_count, 10) || 0; // Parse order count
-          
-          totalRevenue += revenue;
-          totalOrderCount += orderCount; // Add to total order count
+            const shopifyRevenueQuery = `
+              SELECT SUM(total_price) as total_revenue, 
+              SUM(total_cost) as total_cost, 
+              COUNT(*) as order_count
+              FROM shopify_orders
+              WHERE utm_campaign = $1 AND DATE(created_at) BETWEEN DATE($2) AND DATE($3)`;
+            
+            const shopifyRevenueResult = await pool.query(shopifyRevenueQuery, [campaignId, startDate, endDate]);
+            const revenue = parseFloat(shopifyRevenueResult.rows[0].total_revenue) || 0;
+            const cost = parseFloat(shopifyRevenueResult.rows[0].total_cost) || 0;
+            const orderCount = parseInt(shopifyRevenueResult.rows[0].order_count, 10) || 0; // Parse order count
+            
+            totalRevenue += revenue;
+            totalCost += cost; // Add to total cost
+            totalOrderCount += orderCount; // Add to total order count
         }
+    
+        // Calculate and add profit to each account object
+        const revenueAfterCosts = totalRevenue * 0.86;
+        const profit = revenueAfterCosts - totalCost - parseFloat(account.total_spend);
       
         account.total_revenue = totalRevenue;
         account.total_spend = parseFloat(account.total_spend); // Ensure this is also a number
+        account.total_cost = totalCost; // Add total cost to account object
         account.order_count = totalOrderCount; // Set total order count
         account.roas = account.total_revenue / account.total_spend || 0;
-      }
+        account.profit = profit; // Set profit
+    }
       
       const [adsWithRoasAndCount, adsetsWithRoasAndCount, campaignsWithRoasAndCount] = await Promise.all([
         calculateRoasAndOrderCount(adsResult.rows, 'utm_content', 'ad_id'),
@@ -1651,22 +1665,33 @@ GROUP BY account_id`;
         calculateRoasAndOrderCount(campaignsResult.rows, 'utm_campaign', 'campaign_id')
       ]);
       
-      const calculateCpa = (dataRows) => {
+    
+    
+
+      const calculateCpaAndCpc = (dataRows) => {
         for (const data of dataRows) {
+          // Calculate CPA
           if (data.order_count && data.order_count > 0) {
             data.cpa = data.total_spend / data.order_count;
           } else {
             data.cpa = 0; // If order_count is 0, set CPA to 0 to avoid division by zero
           }
+      
+          // Calculate CPC
+          if (data.unique_clicks && data.unique_clicks > 0) {
+            data.cpc = data.total_spend / data.unique_clicks; // Calculate CPC as Spend/unique_clicks
+          } else {
+            data.cpc = 0; // If unique_clicks is 0, set CPC to 0 to avoid division by zero
+          }
         }
         return dataRows;
       };
 
-      const adsWithCpa = calculateCpa(adsWithRoasAndCount);
-      const adsetsWithCpa = calculateCpa(adsetsWithRoasAndCount);
-      const campaignsWithCpa = calculateCpa(campaignsWithRoasAndCount);
-      const adAccountsWithCpa = calculateCpa(adaccounts.rows);
-
+      const adsWithCpaAndCpc = calculateCpaAndCpc(adsWithRoasAndCount);
+      const adsetsWithCpaAndCpc = calculateCpaAndCpc(adsetsWithRoasAndCount);
+      const campaignsWithCpaAndCpc = calculateCpaAndCpc(campaignsWithRoasAndCount);
+      const adAccountsWithCpaAndCpc = calculateCpaAndCpc(adaccounts.rows);
+      
 
       const calculateAov = (dataRows) => {
         for (const data of dataRows) {
@@ -1687,8 +1712,8 @@ GROUP BY account_id`;
 
       const calculateCvr = (dataRows) => {
         for (const data of dataRows) {
-          if (data.total_clicks && data.total_clicks > 0) {
-            data.cvr = (data.order_count / data.total_clicks) * 100; // CVR as a percentage
+          if (data.unique_clicks && data.unique_clicks > 0) {
+            data.cvr = (data.order_count / data.unique_clicks) * 100; // CVR as a percentage
           } else {
             data.cvr = 0; // If total_clicks is 0, set CVR to 0 to avoid division by zero
           }
@@ -1705,8 +1730,8 @@ GROUP BY account_id`;
 
       const calculateEpc = (dataRows) => {
         for (const data of dataRows) {
-          if (data.total_clicks && data.total_clicks > 0) {
-            data.epc = data.total_revenue / data.total_clicks; // EPC calculation
+          if (data.unique_clicks && data.unique_clicks > 0) {
+            data.epc = data.total_revenue / data.unique_clicks; // EPC calculation
           } else {
             data.epc = 0; // If total_clicks is 0, set EPC to 0 to avoid division by zero
           }
@@ -1721,18 +1746,296 @@ GROUP BY account_id`;
       const adAccountsWithEpc = calculateEpc(adaccounts.rows);
 
 
+      const calculateProfit = (dataRows) => {
+        for (const data of dataRows) {
+          const revenueAfterCosts = data.total_revenue * 0.86;
+          data.profit = revenueAfterCosts - data.total_cost - data.total_spend; // Apply profit calculation
+        }
+        return dataRows;
+      };
+      
+
+
+      const adsWithProfit = calculateProfit(adsWithEpc);
+      const adsetsWithProfit = calculateProfit(adsetsWithEpc);
+      const campaignsWithProfit = calculateProfit(campaignsWithEpc);
+      const adAccountsWithProfit = calculateProfit(adAccountsWithEpc);
+
+
+
 
       res.json({
-        ads: adsWithEpc,
-        campaigns: campaignsWithEpc,
-        adsets: adsetsWithEpc,
-        adaccounts: adAccountsWithEpc,
+        ads: adsWithProfit,
+        campaigns: campaignsWithProfit,
+        adsets: adsetsWithProfit,
+        adaccounts: adAccountsWithProfit,
       });
   } catch (error) {
       console.error('Error fetching data:', error);
       res.status(500).send('Error fetching data');
   }
 });
+
+
+const LAST_PROCESSED_FILE = './last_processed.txt'; // or any path you prefer
+
+  function saveLastProcessedId(lastId) {
+    fs.writeFileSync(LAST_PROCESSED_FILE, lastId.toString());
+}
+
+function readLastProcessedId() {
+  try {
+      const lastId = fs.readFileSync(LAST_PROCESSED_FILE, 'utf8');
+      return lastId ? parseInt(lastId, 10) : null;
+  } catch (error) {
+      // Handle error (e.g., file doesn't exist)
+      return null; // or appropriate starting value
+  }
+}
+
+
+async function fetchAllVariantIds() {
+  const lastProcessedId = readLastProcessedId();
+  try {
+      let query = `
+        SELECT
+          shopify_order_id,
+          jsonb_array_elements(line_items)->>'variant_id' AS variant_id,
+          jsonb_array_elements(line_items)->>'product_id' AS product_id,
+          jsonb_array_elements(line_items)->>'title' AS title
+        FROM 
+          shopify_orders
+      `;
+      if (lastProcessedId) {
+        query += ` WHERE shopify_order_id > ${lastProcessedId}`;
+    }
+    query += ` ORDER BY shopify_order_id`;
+    const res = await pool.query(query);
+    return res.rows.map(row => ({ 
+      orderId: row.shopify_order_id, // store order ID for later use
+      variantId: row.variant_id, 
+      productId: row.product_id,
+      title: row.title
+    }));
+    } catch (error) {
+    console.error('Error fetching variant IDs from database:', error);
+    throw error;
+  }
+}
+
+
+
+async function checkExistingVariantIds(variantIds) {
+  const placeholders = variantIds.map((_, index) => `$${index + 1}`).join(', ');
+  const query = `
+    SELECT variant_id 
+    FROM nooro_products 
+    WHERE variant_id IN (${placeholders});
+  `;
+  const res = await pool.query(query, variantIds);
+  const existingIds = new Set(res.rows.map(row => row.variant_id));
+  return variantIds.filter(id => !existingIds.has(id));
+}
+
+async function fetchInventoryItemIds(variantProductPairs, processedVariants) {
+  try {
+      const inventoryItems = [];
+      for (const pair of variantProductPairs) {
+          // Skip if title is 'Tip' or variantId is null or already processed
+          if (pair.title === 'Tip' || pair.variantId === null || processedVariants.has(pair.variantId)) {
+              console.log(`Skipping variant with title 'Tip', null variantId, or already processed Variant ID: ${pair.variantId}.`);
+              continue;
+          }
+  
+          try {
+              const variantResponse = await axios.get(`https://${process.env.SHOPIFY_SHOP_DOMAIN}/admin/api/2023-10/variants/${pair.variantId}.json`, {
+                  headers: {
+                      'X-Shopify-Access-Token': process.env.SHOPIFY_ACCESS_TOKEN,
+                  },
+              });
+              inventoryItems.push({
+                  variantId: pair.variantId,
+                  productId: pair.productId,
+                  title: pair.title,
+                  inventoryItemId: variantResponse.data.variant.inventory_item_id
+              });
+          } catch (innerError) {
+              console.error(`Error fetching inventory item ID for variant ${pair.variantId}:`, innerError);
+          }
+      }
+      return inventoryItems;
+  } catch (error) {
+      console.error('Error in fetchInventoryItemIds:', error);
+      throw error;
+  }
+}
+
+
+  async function fetchInventoryItemDetails(inventoryItems) {
+    const detailedInventory = [];
+    for (const item of inventoryItems) {
+      
+      try {
+        const inventoryItemResponse = await axios.get(`https://${process.env.SHOPIFY_SHOP_DOMAIN}/admin/api/2023-10/inventory_items/${item.inventoryItemId}.json`, {
+          headers: {
+            'X-Shopify-Access-Token': process.env.SHOPIFY_ACCESS_TOKEN,
+          },
+        });
+  
+        const detail = inventoryItemResponse.data.inventory_item; // Corrected reference
+  
+        detailedInventory.push({
+          variantId: item.variantId,
+          productId: item.productId,
+          title: item.title,
+          inventoryItemId: item.inventoryItemId,
+          inventorySku: detail.sku,
+          createdAt: detail.created_at,
+          updatedAt: detail.updated_at,
+          requiresShipping: detail.requires_shipping,
+          cost: detail.cost,
+          countryCodeOfOrigin: detail.country_code_of_origin,
+          provinceCodeOfOrigin: detail.province_code_of_origin,
+          harmonizedSystemCode: detail.harmonized_system_code,
+          tracked: detail.tracked,
+          adminGraphqlApiId: detail.admin_graphql_api_id
+        });
+      } catch (error) {
+        console.error(`Error fetching inventory item details for item ${item.inventoryItemId}:`, error);
+        // Handle the error as per your policy (skip/continue/stop)
+      }
+    }
+    return detailedInventory;
+  }
+  async function processBatch(variantIdBatch, processedVariants) {
+    const variantIds = await checkExistingVariantIds(variantIdBatch);
+    if (variantIds.length === 0) return;
+  
+    const inventoryItems = await fetchInventoryItemIds(variantIdBatch, processedVariants); // Pass processedVariants here
+    const inventoryDetails = await fetchInventoryItemDetails(inventoryItems);
+  
+    for (const item of inventoryDetails) {
+        if (processedVariants.has(item.variantId)) {
+            console.log(`Skipping already processed Variant ID: ${item.variantId}`);
+            continue; // Skip this variant if it was already processed
+        }
+      const upsertQuery = `
+        INSERT INTO nooro_products (
+          variant_id, product_id, title, inventory_item_id, 
+          inventory_sku, created_at, updated_at, requires_shipping, 
+          cost, country_code_of_origin, province_code_of_origin, 
+          harmonized_system_code, tracked, admin_graphql_api_id
+        ) VALUES (
+          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14
+        )
+        ON CONFLICT (inventory_item_id) DO UPDATE SET
+          variant_id = EXCLUDED.variant_id,
+          product_id = EXCLUDED.product_id,
+          title = EXCLUDED.title,
+          inventory_sku = EXCLUDED.inventory_sku,
+          created_at = EXCLUDED.created_at,
+          updated_at = EXCLUDED.updated_at,
+          requires_shipping = EXCLUDED.requires_shipping,
+          cost = EXCLUDED.cost,
+          country_code_of_origin = EXCLUDED.country_code_of_origin,
+          province_code_of_origin = EXCLUDED.province_code_of_origin,
+          harmonized_system_code = EXCLUDED.harmonized_system_code,
+          tracked = EXCLUDED.tracked,
+          admin_graphql_api_id = EXCLUDED.admin_graphql_api_id
+          RETURNING inventory_item_id, cost as new_cost, (SELECT cost FROM nooro_products WHERE inventory_item_id = $4) as old_cost;
+
+      `;
+      try {
+        const result = await pool.query(upsertQuery, [
+            item.variantId, item.productId, item.title, item.inventoryItemId,
+            item.inventorySku, item.createdAt, item.updatedAt, item.requiresShipping,
+            item.cost, item.countryCodeOfOrigin, item.provinceCodeOfOrigin,
+            item.harmonizedSystemCode, item.tracked, item.adminGraphqlApiId
+        ]);
+    
+        // Log the variant ID and its cost
+        console.log(`Processed Variant ID: ${item.variantId}, Cost: ${item.cost}`);
+        
+        // Check result and log any changes in cost
+        if(result && result.rows.length > 0) {
+            const updatedItem = result.rows[0];
+            if(updatedItem.new_cost !== updatedItem.old_cost) {
+                console.log(`Updated cost for Variant ID: ${item.variantId}. Old Cost: ${updatedItem.old_cost}, New Cost: ${updatedItem.new_cost}`);
+            }
+        }
+        // After processing, add variantId to the processedVariants set
+        processedVariants.add(item.variantId);
+    } catch (error) {
+        console.error(`Error processing variant ${item.variantId}: ${error.message}`);
+    }
+}
+
+console.log('Batch data saved or updated in the database');
+}
+
+async function newMaster() {
+  try {
+      const lastProcessedId = readLastProcessedId();
+      const processedVariants = new Set(); // Initialize a set to track processed variant IDs
+      
+      console.log(`Starting from Shopify Order ID: ${lastProcessedId}`);
+
+      let allVariants = await fetchAllVariantIds(); 
+      let highestOrderId = lastProcessedId;
+      let currentBatch = []; // Initialize the current batch
+
+      while (allVariants.length > 0 || currentBatch.length > 0) {
+          // Fill the current batch with unprocessed variants
+          while (currentBatch.length < 50 && allVariants.length > 0) {
+              let variant = allVariants.shift(); // Take one variant from the list
+              if (!processedVariants.has(variant.variantId)) {
+                  currentBatch.push(variant); // Add to current batch if not processed
+              }
+          }
+
+          if (currentBatch.length > 0) {
+              await processBatch(currentBatch, processedVariants); // Process the current batch
+
+              // Update highest order ID if applicable
+              const batchMaxOrderId = Math.max(...currentBatch.map(item => parseInt(item.orderId)));
+              if (batchMaxOrderId > highestOrderId) {
+                  highestOrderId = batchMaxOrderId;
+              }
+
+              console.log(`Processed a batch of ${currentBatch.length} items`);
+              currentBatch = []; // Reset the current batch after processing
+          } else {
+              console.log("No more unprocessed variants in the batch to process.");
+              break;
+          }
+      }
+  
+      if (highestOrderId && highestOrderId !== lastProcessedId) {
+          saveLastProcessedId(highestOrderId);
+      }
+  
+      console.log('All items processed');
+  } catch (error) {
+      console.error('Error in newMaster function:', error);
+  }
+}
+
+
+
+function startInterval() {
+  // Run the function immediately if you want or wait for first 12 hours tick
+  newMaster();
+
+  // Set the interval to run every 12 hours
+  setInterval(() => {
+      console.log('Starting newMaster function as per scheduled interval.');
+      newMaster();
+  }, 43200000); // 12 hours in milliseconds
+}
+
+// Start the interval
+startInterval();
+
 
 
 
