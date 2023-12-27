@@ -9,6 +9,8 @@ const fs = require('fs');
 const LAST_ORDER_ID_FILE = 'last_order_id.txt';
 const path = require('path');
 const moment = require('moment-timezone');
+const { data } = require('autoprefixer');
+const { log } = require('console');
 
 const app = express();
 const PORT = process.env.PORT || 2000;
@@ -251,7 +253,6 @@ async function fetchShopifyOrders(endpoint, initialParams, sinceId = 0) {
       console.log(`Fetched ${response.data.orders.length} orders.`); // Log the count of fetched orders
       for (const order of response.data.orders) {
           // Log a summary of each order's line_items immediately after fetching
-          console.log(`Order ID: ${order.id}, Line Items Count: ${order.line_items ? order.line_items.length : 'None'}`);
       }
 
 
@@ -640,6 +641,87 @@ async function master() {
 
 
 
+
+
+
+
+
+
+
+
+
+async function fetchShopifyQLData(apiVersion, accessToken) {
+  try {
+    const query = `
+    {
+      shopifyqlQuery(query: "FROM orders SHOW sum(net_sales) AS monthly_net_sales GROUP BY month SINCE -3m ORDER BY month") {
+        __typename
+        ... on TableResponse {
+          tableData {
+            unformattedData
+            rowData
+            columns {
+              name
+              dataType
+              displayName
+            }
+          }
+        }
+        parseErrors {
+          code
+          message
+          range {
+            start {
+              line
+              character
+            }
+            end {
+              line
+              character
+            }
+          }
+        }
+      }
+    }
+    `;
+
+    const url = `https://${process.env.SHOPIFY_SHOP_DOMAIN}/admin/api/${apiVersion}/graphql.json`;
+
+    const headers = {
+      'X-Shopify-Access-Token': accessToken,
+      'Content-Type': 'application/json',
+    };
+
+    const response = await axios.post(url, { query }, { headers });
+
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching ShopifyQL data:', error.response ? error.response.data : error.message);
+    throw error;
+  }
+}
+
+// Replace these values with your Shopify store's information
+const apiVersion = '2023-10'; // Use the desired Shopify API version
+const accessToken = process.env.SHOPIFY_ACCESS_TOKEN; // Replace with your Shopify access token
+
+fetchShopifyQLData(apiVersion, accessToken)
+  .then((data) => {
+    // Extract and log the net_sales data
+    const netSalesData = data.data.shopifyqlQuery.tableData.rowData;
+    console.log('Net Sales Data:', netSalesData);
+  })
+  .catch((error) => {
+    console.error('Error:', error);
+  });
+
+
+
+
+// main(); // Call the main function
+
+
+
 app.get('/api/todays-orders-db', async (req, res) => {
   try {
     const todaysDate = getTodaysDate(); // Assuming this returns a date string like 
@@ -937,7 +1019,8 @@ async function fetchFacebookCampaignData() {
           'reach',
           'updated_time',
           'date_start',
-          'date_stop'
+          'date_stop',
+          'unique_clicks'
         ].join(','),
         level: 'campaign',
         date_preset: 'today',
@@ -1002,7 +1085,8 @@ async function fetchFacebookAdSetData(fetchedCampaignIds) {
             'cpm',
             'clicks',
             'date_start',
-            'date_stop'
+            'date_stop',
+            'unique_clicks'
           ].join(','),
           level: 'adset',
           date_preset: 'today',
@@ -1090,7 +1174,8 @@ async function fetchFacebookAdSetData(fetchedCampaignIds) {
                             'ctr',
                             'cpm',
                             'date_start',
-                            'date_stop'
+                            'date_stop',
+                            'unique_clicks'
                             // Add other relevant fields here
                         ].join(','),
                         level: 'ad',
@@ -1188,10 +1273,10 @@ async function fetchFacebookAdAccountSummary(adAccounts) {
       const params = {
         access_token: process.env.FACEBOOK_TOKEN,
         fields: [
-          'spend', 'impressions', 'actions', 'clicks', 'reach', 'cpc', 'ctr', 'cpm', 'date_stop', 'date_start'
+          'spend', 'impressions', 'actions', 'clicks', 'reach', 'cpc', 'ctr', 'cpm', 'date_stop', 'date_start', 'unique_clicks'
         ].join(','),
         action_breakdowns: 'action_type',
-        summary: 'spend,impressions,actions,clicks,reach,cpc,ctr,cpm,date_stop,date_start',
+        summary: 'spend,impressions,actions,clicks,reach,cpc,ctr,cpm,date_stop,date_start,unique_clicks',
         date_preset: 'today',
       };
 
@@ -1213,7 +1298,8 @@ async function fetchFacebookAdAccountSummary(adAccounts) {
           cpm: data.cpm,
           data_set: 'ad_account',
           date_start: data.date_start,
-          date_stop: data.date_stop
+          date_stop: data.date_stop,
+          unique_clicks: data.unique_clicks
 
           
         });
@@ -1229,16 +1315,16 @@ async function fetchFacebookAdAccountSummary(adAccounts) {
 
 async function saveDataToDatabase(dataset, tableName) {
   let insertQuery;
-  
+
   switch (tableName) {
     case 'facebook_ads':
       insertQuery = `
       INSERT INTO facebook_ads (
         ad_id, ad_name, adset_id, adset_name, campaign_id, campaign_name, account_id, account_name, 
         impressions, spend, cpc, ctr, cpm, clicks, reach, shopify_order_count, 
-        time_database, data_set, date_start, date_stop
+        time_database, data_set, date_start, date_stop, unique_clicks
       ) VALUES (
-        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21
       ) ON CONFLICT (ad_id, date_start) DO UPDATE SET
         ad_name = EXCLUDED.ad_name,
         adset_name = EXCLUDED.adset_name,
@@ -1254,7 +1340,8 @@ async function saveDataToDatabase(dataset, tableName) {
         shopify_order_count = EXCLUDED.shopify_order_count, 
         time_database = EXCLUDED.time_database, 
         data_set = EXCLUDED.data_set, 
-        date_stop = EXCLUDED.date_stop
+        date_stop = EXCLUDED.date_stop,
+        unique_clicks = EXCLUDED.unique_clicks
       `;
       break;
 
@@ -1264,9 +1351,9 @@ async function saveDataToDatabase(dataset, tableName) {
           INSERT INTO facebook_adsets (
             adset_id, adset_name, campaign_id, campaign_name, account_id, account_name, 
             impressions, spend, cpc, ctr, cpm, clicks, reach, shopify_order_count, 
-            time_database, data_set, date_start, date_stop
+            time_database, data_set, date_start, date_stop, unique_clicks
           ) VALUES (
-            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18
+            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19
           ) ON CONFLICT (adset_id, date_start) DO UPDATE SET
             adset_name = EXCLUDED.adset_name, 
             campaign_name = EXCLUDED.campaign_name, 
@@ -1281,7 +1368,8 @@ async function saveDataToDatabase(dataset, tableName) {
             shopify_order_count = EXCLUDED.shopify_order_count, 
             time_database = EXCLUDED.time_database, 
             data_set = EXCLUDED.data_set, 
-            date_stop = EXCLUDED.date_stop
+            date_stop = EXCLUDED.date_stop,
+            unique_clicks = EXCLUDED.unique_clicks
         `;
         break;
 
@@ -1290,9 +1378,9 @@ async function saveDataToDatabase(dataset, tableName) {
             INSERT INTO facebook_campaigns (
               campaign_id, campaign_name, account_id, account_name, 
               impressions, spend, cpc, ctr, cpm, clicks, reach, shopify_order_count, 
-              time_database, data_set, date_start, date_stop
+              time_database, data_set, date_start, date_stop, unique_clicks
             ) VALUES (
-              $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16
+              $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17
             ) ON CONFLICT (campaign_id, date_start) DO UPDATE SET
               campaign_name = EXCLUDED.campaign_name, 
               account_name = EXCLUDED.account_name, 
@@ -1306,7 +1394,8 @@ async function saveDataToDatabase(dataset, tableName) {
               shopify_order_count = EXCLUDED.shopify_order_count, 
               time_database = EXCLUDED.time_database, 
               data_set = EXCLUDED.data_set, 
-              date_stop = EXCLUDED.date_stop
+              date_stop = EXCLUDED.date_stop,
+              unique_clicks = EXCLUDED.unique_clicks
           `;
           break;
 
@@ -1314,9 +1403,9 @@ async function saveDataToDatabase(dataset, tableName) {
             insertQuery = `
               INSERT INTO facebook_adaccounts (
                 account_id, account_name, impressions, spend, cpc, ctr, cpm, 
-                clicks, reach, time_database, data_set, date_start, date_stop
+                clicks, reach, time_database, data_set, date_start, date_stop, unique_clicks
               ) VALUES (
-                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13
+                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14
               ) ON CONFLICT (account_id, date_start) DO UPDATE SET
                 account_name = EXCLUDED.account_name, 
                 impressions = EXCLUDED.impressions, 
@@ -1329,7 +1418,8 @@ async function saveDataToDatabase(dataset, tableName) {
                 time_database = EXCLUDED.time_database, 
                 data_set = EXCLUDED.data_set, 
                 date_start = EXCLUDED.date_start,
-                date_stop = EXCLUDED.date_stop
+                date_stop = EXCLUDED.date_stop,
+                unique_clicks = EXCLUDED.unique_clicks
             `;
             break;
 
@@ -1348,7 +1438,7 @@ async function saveDataToDatabase(dataset, tableName) {
                     record.campaign_id, record.campaign_name, record.account_id, record.account_name, 
                     record.impressions, record.spend, record.cpc, record.ctr, record.cpm, 
                     record.clicks, record.reach, record.shopifyOrderCountAds, 
-                    pacificTime, record.data_set, record.date_start, record.date_stop
+                    pacificTime, record.data_set, record.date_start, record.date_stop, record.unique_clicks
                   ];
                   break;
           
@@ -1358,7 +1448,7 @@ async function saveDataToDatabase(dataset, tableName) {
                     record.account_id, record.account_name, record.impressions, record.spend, 
                     record.cpc, record.ctr, record.cpm, record.clicks, record.reach, 
                     record.shopifyOrderCountAdSet, pacificTime, record.data_set, 
-                    record.date_start, record.date_stop
+                    record.date_start, record.date_stop, record.unique_clicks
                   ];
                   break;
 
@@ -1369,7 +1459,7 @@ async function saveDataToDatabase(dataset, tableName) {
                     record.account_id, record.account_name, record.impressions, record.spend, 
                     record.cpc, record.ctr, record.cpm, record.clicks, record.reach, 
                     record.shopifyOrderCountCampaign, pacificTime, record.data_set, 
-                    record.date_start, record.date_stop
+                    record.date_start, record.date_stop, record.unique_clicks
                   ];
                   break;
 
@@ -1378,7 +1468,7 @@ async function saveDataToDatabase(dataset, tableName) {
                       record.accountId, record.accountName, record.impressions, record.spend, 
                       record.cpc, record.ctr, record.cpm, record.clicks, record.reach, 
                       pacificTime, record.data_set, 
-                      record.date_start, record.date_stop
+                      record.date_start, record.date_stop, record.unique_clicks
                     ];
                   break;
 
@@ -2038,9 +2128,6 @@ startInterval();
 
 
 
-
-
-
 function getTodayDateRangePacific() {
   const start = moment().tz("America/Los_Angeles").startOf('day');
   const end = moment(start).add(1, 'day');
@@ -2209,6 +2296,8 @@ app.get('/api/users', authenticateToken, authenticateAdmin, async (req, res) => 
     res.status(500).send('Server error');
   }
 });
+
+
 
 
 app.listen(PORT, () => {
