@@ -12,6 +12,7 @@ const moment = require('moment-timezone');
 const { data } = require('autoprefixer');
 const { log } = require('console');
 
+
 const app = express();
 const PORT = process.env.PORT || 2000;
 
@@ -1852,6 +1853,23 @@ GROUP BY account_id`;
       const adAccountsWithProfit = calculateProfit(adAccountsWithEpc);
 
 
+      const calculateCtr = (dataRows) => {
+        for (const data of dataRows) {
+          if (data.unique_clicks && data.impressions) {
+            data.ctr = (data.unique_clicks / data.impressions) * 100; // CTR calculation
+          } else {
+            data.ctr = 0; // If unique_clicks or impressions are 0, set CTR to 0 to avoid division by zero
+          }
+        }
+        return dataRows;
+      };
+      
+      // Apply CTR calculation to each set of data
+      const adsWithCtr = calculateCtr(adsWithProfit);
+      const adsetsWithCtr = calculateCtr(adsetsWithProfit);
+      const campaignsWithCtr = calculateCtr(campaignsWithProfit);
+      const adAccountsWithCtr = calculateProfit(adAccountsWithProfit);
+
       let totalRevenue = 0;
       let totalCost = 0;
       let totalAdSpend = 0;
@@ -1867,10 +1885,10 @@ GROUP BY account_id`;
 
 
       res.json({
-        ads: adsWithProfit,
-        campaigns: campaignsWithProfit,
-        adsets: adsetsWithProfit,
-        adaccounts: adAccountsWithProfit,
+        ads: adsWithCtr,
+        campaigns: adsetsWithCtr,
+        adsets: campaignsWithCtr,
+        adaccounts: adAccountsWithCtr,
         totalProfit: totalProfit 
       });
   } catch (error) {
@@ -1878,6 +1896,10 @@ GROUP BY account_id`;
       res.status(500).send('Error fetching data');
   }
 });
+
+
+
+
 
 
 const LAST_PROCESSED_FILE = './last_processed.txt'; // or any path you prefer
