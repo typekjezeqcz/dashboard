@@ -1886,8 +1886,8 @@ GROUP BY account_id`;
 
       res.json({
         ads: adsWithCtr,
-        campaigns: adsetsWithCtr,
-        adsets: campaignsWithCtr,
+        campaigns: campaignsWithCtr,
+        adsets: adsetsWithCtr,
         adaccounts: adAccountsWithCtr,
         totalProfit: totalProfit 
       });
