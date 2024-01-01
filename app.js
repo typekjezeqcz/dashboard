@@ -706,21 +706,6 @@ async function fetchShopifyQLData(apiVersion, accessToken) {
 const apiVersion = '2023-10'; // Use the desired Shopify API version
 const accessToken = process.env.SHOPIFY_ACCESS_TOKEN; // Replace with your Shopify access token
 
-fetchShopifyQLData(apiVersion, accessToken)
-  .then((data) => {
-    // Extract and log the net_sales data
-    const netSalesData = data.data.shopifyqlQuery.tableData.rowData;
-    console.log('Net Sales Data:', netSalesData);
-  })
-  .catch((error) => {
-    console.error('Error:', error);
-  });
-
-
-
-
-// main(); // Call the main function
-
 
 
 app.get('/api/todays-orders-db', async (req, res) => {
@@ -1710,8 +1695,6 @@ GROUP BY account_id`;
           return [];
         }
       };
-
-      
       for (const account of adaccounts.rows) {
         let totalRevenue = 0;
         let totalCost = 0; // Initialize total cost
@@ -1739,14 +1722,21 @@ GROUP BY account_id`;
         // Calculate and add profit to each account object
         const revenueAfterCosts = totalRevenue * 0.86;
         const profit = revenueAfterCosts - totalCost - parseFloat(account.total_spend);
-      
+    
         account.total_revenue = totalRevenue;
         account.total_spend = parseFloat(account.total_spend); // Ensure this is also a number
         account.total_cost = totalCost; // Add total cost to account object
         account.order_count = totalOrderCount; // Set total order count
         account.roas = account.total_revenue / account.total_spend || 0;
         account.profit = profit; // Set profit
-    }
+    
+        // Calculate and add profit margin to each account object
+        if (totalRevenue > 0) {
+            account.profit_margin = (profit / totalRevenue) * 100; // Calculate profit margin as a percentage
+        } else {
+            account.profit_margin = 0; // Avoid division by zero or negative revenue
+        }
+    }    
       
       const [adsWithRoasAndCount, adsetsWithRoasAndCount, campaignsWithRoasAndCount] = await Promise.all([
         calculateRoasAndOrderCount(adsResult.rows, 'utm_content', 'ad_id'),
@@ -1838,19 +1828,26 @@ GROUP BY account_id`;
 
 
 
-      const calculateProfit = (dataRows) => {
+      const calculateProfitAndMargin = (dataRows) => {
         for (const data of dataRows) {
-          const revenueAfterCosts = data.total_revenue * 0.86;
-          data.profit = revenueAfterCosts - data.total_cost - data.total_spend; // Apply profit calculation
+            const revenueAfterCosts = data.total_revenue * 0.86;
+            data.profit = revenueAfterCosts - data.total_cost - data.total_spend; // Apply profit calculation
+    
+            // Add profit margin calculation
+            if (data.total_revenue > 0) {
+                data.profit_margin = (data.profit / data.total_revenue) * 100; // Calculate profit margin as a percentage
+            } else {
+                data.profit_margin = 0; // Avoid division by zero
+            }
         }
         return dataRows;
-      };
+    };
       
 
-      const adsWithProfit = calculateProfit(adsWithEpc);
-      const adsetsWithProfit = calculateProfit(adsetsWithEpc);
-      const campaignsWithProfit = calculateProfit(campaignsWithEpc);
-      const adAccountsWithProfit = calculateProfit(adAccountsWithEpc);
+      const adsWithProfit = calculateProfitAndMargin(adsWithEpc);
+      const adsetsWithProfit = calculateProfitAndMargin(adsetsWithEpc);
+      const campaignsWithProfit = calculateProfitAndMargin(campaignsWithEpc);
+      const adAccountsWithProfit = calculateProfitAndMargin(adAccountsWithEpc);
 
 
       const calculateCtr = (dataRows) => {
@@ -1868,7 +1865,7 @@ GROUP BY account_id`;
       const adsWithCtr = calculateCtr(adsWithProfit);
       const adsetsWithCtr = calculateCtr(adsetsWithProfit);
       const campaignsWithCtr = calculateCtr(campaignsWithProfit);
-      const adAccountsWithCtr = calculateProfit(adAccountsWithProfit);
+      const adAccountsWithCtr = calculateProfitAndMargin(adAccountsWithProfit);
 
       let totalRevenue = 0;
       let totalCost = 0;
