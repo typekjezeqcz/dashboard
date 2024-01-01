@@ -1,8 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react'; // Import useRef
-import DateSelector from './DatePicker'; // Assuming DateSelector is in the same directory
 import axios from 'axios';
-import DatePicker from 'react-datepicker';
-import 'react-datepicker/dist/react-datepicker.css';
 import Spinner from './spinner'; // Import the Spinner component
 import './fb.css'
 import SummaryCardsContainer from './FacebookSalesSummary';
@@ -236,7 +233,7 @@ const removeFilter = (filter, type) => {
     
         // Define which keys correspond to which types of data
         const currencyFields = ['total_spend', 'total_revenue', 'profit', 'cpa', 'aov', 'epc', 'cpc', 'average_cpm'];
-        const percentageFields = ['average_ctr', 'cvr'];
+        const percentageFields = ['average_ctr', 'cvr', 'profit_margin'];
         const wholeNumberFields = ['total_impressions', 'unique_clicks', 'order_count'];
         
     if (currencyFields.includes(key)) {
@@ -263,6 +260,7 @@ const getColumnConfig = (type) => {
         { key: 'total_spend', label: 'Spend' },
         { key: 'roas', label: 'ROAS' },
         { key: 'profit', label: 'Profit' },
+        { key: 'profit_margin', label: 'Profit %' },
         { key: 'cpa', label: 'CPA' },
         { key: 'aov', label: 'AOV' },
         { key: 'cvr', label: 'CVR' },
@@ -281,6 +279,7 @@ const getColumnConfig = (type) => {
         { key: 'total_spend', label: 'Spend' },
         { key: 'roas', label: 'ROAS' },
         { key: 'profit', label: 'Profit' },
+        { key: 'profit_margin', label: 'Profit %' },
         { key: 'cpa', label: 'CPA' },
         { key: 'aov', label: 'AOV' },
         { key: 'cvr', label: 'CVR' },
@@ -302,6 +301,7 @@ const getColumnConfig = (type) => {
         { key: 'total_spend', label: 'Spend' },
         { key: 'roas', label: 'ROAS' },
         { key: 'profit', label: 'Profit' },
+        { key: 'profit_margin', label: 'Profit %' },
         { key: 'cpa', label: 'CPA' },
         { key: 'aov', label: 'AOV' },
         { key: 'cvr', label: 'CVR' },
@@ -322,6 +322,8 @@ const getColumnConfig = (type) => {
         { key: 'ad_name', label: 'Ads Name' },
         { key: 'total_spend', label: 'Spend' },
         { key: 'roas', label: 'ROAS' },
+        { key: 'profit', label: 'Profit' },
+        { key: 'profit_margin', label: 'Profit %' },
         { key: 'cpa', label: 'CPA' },
         { key: 'aov', label: 'AOV' },
         { key: 'cvr', label: 'CVR' },
@@ -458,7 +460,7 @@ return (
         const val = row[key];
         const changeIndicator = prevData && prevData[idx] ? getChangeIndicator(key, val, prevData[idx][key]) : null;
         return (
-          <td key={key} className={`py-4 px-6 ${
+          <td key={key} className={`py-4 px-8 ${
             ['campaign_name', 'adset_name', 'ad_name'].includes(key) ? "text-left" : "text-center"
           } ${idx % 2 === 0 ? 'dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-900'}`}>
             {formatValue(key, val)}
