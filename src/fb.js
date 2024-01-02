@@ -366,20 +366,27 @@ const calculatePercentiles = (data, field) => {
 
 // Calculate percentiles for each field
 const roasPercentiles = useMemo(() => calculatePercentiles(data, 'roas'), [data]);
-const spendPercentiles = useMemo(() => calculatePercentiles(data, 'total_spend'), [data]);
 const cpcPercentiles = useMemo(() => calculatePercentiles(data, 'cpc'), [data]);
 
-
-const getColorForValueLog = (value, percentiles) => {
+const getColorForValueLog = (value, percentiles, isLowerBetter = false) => {
   // Ensure percentiles are passed as a parameter
   const logValue = Math.log(value + 1); // Adding 1 to avoid log(0)
   const normalizedValue = (logValue - Math.log(percentiles.min + 1)) / (Math.log(percentiles.max + 1) - Math.log(percentiles.min + 1));
-
-  if (normalizedValue <= 0.2) return '#FF4500'; // Red
-  if (normalizedValue <= 0.4) return '#f1807e'; // Light Red
-  if (normalizedValue <= 0.6) return '#FFFF00'; // Yellow
-  if (normalizedValue <= 0.8) return '#9ACD32'; // Light Green
-  return '#008000'; // Green
+  
+  // Check if lower values are better, then invert the color scale
+  if (isLowerBetter) {
+    if (normalizedValue <= 0.2) return '#008000'; // Green
+    if (normalizedValue <= 0.4) return '#9ACD32'; // Light Green
+    if (normalizedValue <= 0.6) return '#FFFF00'; // Yellow
+    if (normalizedValue <= 0.8) return '#f1807e'; // Light Red
+    return '#FF4500'; // Red
+  } else {
+    if (normalizedValue <= 0.2) return '#FF4500'; // Red
+    if (normalizedValue <= 0.4) return '#f1807e'; // Light Red
+    if (normalizedValue <= 0.6) return '#FFFF00'; // Yellow
+    if (normalizedValue <= 0.8) return '#9ACD32'; // Light Green
+    return '#008000'; // Green
+  }
 };
 
 const columns = useMemo(() => getColumnConfig(type), [type, roasPercentiles /* Add other percentiles here too */]);
@@ -496,13 +503,12 @@ return (
           // Apply percentile color based on the field using log scale
           let color;
           if (key === 'roas') color = getColorForValueLog(val, roasPercentiles);
-          else if (key === 'total_spend') color = getColorForValueLog(val, spendPercentiles);
-          else if (key === 'cpc') color = getColorForValueLog(val, cpcPercentiles);
-        
-          // Updated to set text color to black
+          else if (key === 'cpc') color = getColorForValueLog(val, cpcPercentiles, true);  // True for isLowerBetter
+          
+          // Updated to set text color to black and apply a very thin top border
           cellStyle = { backgroundColor: color, color: 'black', borderTop: '0.1px solid #000000' };
         }
-        
+              
 
         return (
           <td key={key} style={cellStyle} className={`py-4 px-8 ${isStickyColumn(key) ? "text-left" : "text-center"} ${idx % 2 === 0 ? 'dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-900'}`}>
