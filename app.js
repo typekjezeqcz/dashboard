@@ -5,18 +5,32 @@ const jwt = require('jsonwebtoken');
 const axios = require('axios');
 const crypto = require('crypto'); // Add this if not already present
 require('dotenv').config();
+const cors = require('cors');
 const fs = require('fs');
 const LAST_ORDER_ID_FILE = 'last_order_id.txt';
 const path = require('path');
 const moment = require('moment-timezone');
 const { data } = require('autoprefixer');
 const { log } = require('console');
-
-
 const app = express();
 const PORT = process.env.PORT || 2000;
+const http = require('http');
+const server = http.createServer(app);
+const { Server } = require("socket.io");
+const io = new Server(server, {
+  cors: {
+      origin: "http://localhost:1500",  // Allow your client origin
+      methods: ["GET", "POST"]  // Allow only necessary methods
+  }
+});
+
+app.use(cors({
+  origin: "http://localhost:1500",  // Allow your client origin
+  methods: ["GET", "POST"]  // Allow only necessary methods
+}));
 
 let lastFetchedOrderId = 0;
+
 
 async function initializeApp() {
   try {
@@ -651,63 +665,6 @@ async function master() {
 
 
 
-async function fetchShopifyQLData(apiVersion, accessToken) {
-  try {
-    const query = `
-    {
-      shopifyqlQuery(query: "FROM orders SHOW sum(net_sales) AS monthly_net_sales GROUP BY month SINCE -3m ORDER BY month") {
-        __typename
-        ... on TableResponse {
-          tableData {
-            unformattedData
-            rowData
-            columns {
-              name
-              dataType
-              displayName
-            }
-          }
-        }
-        parseErrors {
-          code
-          message
-          range {
-            start {
-              line
-              character
-            }
-            end {
-              line
-              character
-            }
-          }
-        }
-      }
-    }
-    `;
-
-    const url = `https://${process.env.SHOPIFY_SHOP_DOMAIN}/admin/api/${apiVersion}/graphql.json`;
-
-    const headers = {
-      'X-Shopify-Access-Token': accessToken,
-      'Content-Type': 'application/json',
-    };
-
-    const response = await axios.post(url, { query }, { headers });
-
-    return response.data;
-  } catch (error) {
-    console.error('Error fetching ShopifyQL data:', error.response ? error.response.data : error.message);
-    throw error;
-  }
-}
-
-// Replace these values with your Shopify store's information
-const apiVersion = '2023-10'; // Use the desired Shopify API version
-const accessToken = process.env.SHOPIFY_ACCESS_TOKEN; // Replace with your Shopify access token
-
-
-
 app.get('/api/todays-orders-db', async (req, res) => {
   try {
     const todaysDate = getTodaysDate(); // Assuming this returns a date string like 
@@ -807,107 +764,102 @@ app.get('/api/todays-orders-db', async (req, res) => {
   }
 });
 
-app.get('/api/orders-by-date', async (req, res) => {
+
+async function fetchDashboardData(start, end) {
+  // Convert the dates to timestamps
+  const startDate = `${start}T00:00:00-08:00`;
+  const endDate = `${end}T23:59:59-08:00`;
+
   try {
-    const { start, end } = req.query;
-    if (!start || !end) {
-      return res.status(400).send('Start and end date parameters are required');
-    }
-
-    // Convert the dates to timestamps
-    const startDate = `${start}T00:00:00-08:00`;
-    const endDate = `${end}T23:59:59-08:00`;
-
-    // Query to fetch orders for the given date
       const query = `SELECT * FROM shopify_orders WHERE created_at >= $1 AND created_at <= $2`;
-
       const values = [startDate, endDate];
-
-
       const result = await pool.query(query, values);
-        const orders = result.rows;
+      const orders = result.rows;
 
-    const aggregatedData = {
-      tags: {},
-      utm_source: {},
-      custom1: {},
-      custom2: {},
-      facebookOrders: {},
-      utm_campaign: {},
-      utm_content: {},
-      utm_term: {}
-    };
-
-    orders.forEach(order => {
-      const orderValue = parseFloat(order.current_total_price || '0');
-
-      // Function to update the aggregated data
-      const updateAggregatedData = (category, key, orderValue) => {
-        if (!aggregatedData[category][key]) {
-          aggregatedData[category][key] = { count: 0, totalSales: 0, largestOrder: 0 };
-        }
-        aggregatedData[category][key].count++;
-        aggregatedData[category][key].totalSales += orderValue;
-        if (orderValue > aggregatedData[category][key].largestOrder) {
-          aggregatedData[category][key].largestOrder = orderValue;
-        }
+      const aggregatedData = {
+          tags: {},
+          utm_source: {},
+          custom1: {},
+          custom2: {},
+          facebookOrders: {},
+          utm_campaign: {},
+          utm_content: {},
+          utm_term: {}
       };
 
-      // Aggregate data for 'Tags'
-      const tags = order.tags ? order.tags.split(',').map(tag => tag.trim()) : ['Other'];
-      tags.forEach(tag => {
-        updateAggregatedData('tags', tag, orderValue);
+      orders.forEach(order => {
+          const orderValue = parseFloat(order.current_total_price || '0');
+
+          const updateAggregatedData = (category, key, orderValue) => {
+              if (!aggregatedData[category][key]) {
+                  aggregatedData[category][key] = { count: 0, totalSales: 0, largestOrder: 0 };
+              }
+              aggregatedData[category][key].count++;
+              aggregatedData[category][key].totalSales += orderValue;
+              if (orderValue > aggregatedData[category][key].largestOrder) {
+                  aggregatedData[category][key].largestOrder = orderValue;
+              }
+          };
+
+          // Aggregate data for 'Tags'
+          const tags = order.tags ? order.tags.split(',').map(tag => tag.trim()) : ['Other'];
+          tags.forEach(tag => {
+              updateAggregatedData('tags', tag, orderValue);
+          });
+
+          // Aggregate data for 'utm_source', 'custom1', 'custom2'
+          order.note_attributes.forEach(attr => {
+              const key = attr.value || 'Unknown';
+              if (aggregatedData[attr.name]) {
+                  updateAggregatedData(attr.name, key, orderValue);
+              }
+
+              // Check if utm_source is 'facebook' and aggregate separately
+              if (attr.name === 'utm_source' && key.toLowerCase() === 'facebook') {
+                  updateAggregatedData('facebookOrders', key, orderValue);
+              }
+          });
       });
 
-      
-
-      // Aggregate data for 'utm_source', 'custom1', 'custom2'
-      order.note_attributes.forEach(attr => {
-        const key = attr.value || 'Unknown';
-        if (aggregatedData[attr.name]) {
-          updateAggregatedData(attr.name, key, orderValue);
-        }
-  
-        // Check if utm_source is 'facebook' and aggregate separately
-        if (attr.name === 'utm_source' && key.toLowerCase() === 'facebook') {
-          updateAggregatedData('facebookOrders', key, orderValue);
-        }
-      });
-    });
-
-        // Calculate total revenue for today's orders
-        const totalRevenue = orders.reduce((total, order) => {
-          // Parse prices to float
+      // Calculate total revenue and largest order revenue for the given orders
+      const totalRevenue = orders.reduce((total, order) => {
           const orderTotal = parseFloat(order.current_total_price || '0');
-    
-          // Subtract refunds if available
-          if (order.refunds && order.refunds.length > 0) {
-            const refundTotal = order.refunds.reduce((refundSum, refund) => {
-              return refundSum + parseFloat(refund.amount || '0');
-            }, 0);
-            return total + orderTotal - refundTotal;
-          } else {
-            return total + orderTotal;
-          }
-        }, 0);
-        const largestOrderRevenue = orders.reduce((largest, order) => {
+          return order.refunds && order.refunds.length > 0
+              ? total + orderTotal - order.refunds.reduce((refundSum, refund) => refundSum + parseFloat(refund.amount || '0'), 0)
+              : total + orderTotal;
+      }, 0);
+      const largestOrderRevenue = orders.reduce((largest, order) => {
           const orderTotal = parseFloat(order.current_total_price || '0');
           return orderTotal > largest ? orderTotal : largest;
       }, 0);
-    
 
-    
-        res.json({
-          count: orders.length, 
-          revenue: totalRevenue.toFixed(2), 
-          largestOrder: largestOrderRevenue.toFixed(2), 
+      return {
+          count: orders.length,
+          revenue: totalRevenue.toFixed(2),
+          largestOrder: largestOrderRevenue.toFixed(2),
           aggregatedData
-        });
-      } catch (error) {
-        console.error('Error fetching orders:', error);
-        res.status(500).send('Error fetching orders');
-      }
-    });
+      };
+  } catch (error) {
+      console.error('Error fetching Dashboard data:', error);
+      throw error; // or handle differently if desired
+  }
+}
+
+
+app.get('/api/orders-by-date', async (req, res) => {
+  const { start, end } = req.query;
+
+  if (!start || !end) {
+      return res.status(400).send('Start and end date parameters are required');
+  }
+
+  try {
+      const data = await fetchDashboardData(start, end);
+      res.json(data);
+  } catch (error) {
+      res.status(500).send('Error fetching orders');
+  }
+});
 
 
 
@@ -1564,14 +1516,7 @@ setInterval(async () => {
 }, 60000);
 
 
-app.get('/api/facebook-data', async (req, res) => {
-  const { startDate, endDate } = req.query;
-
-  if (!startDate || !endDate) {
-      return res.status(400).send('Start date and end date are required');
-  }
-
-  
+async function fetchFbData(startDate, endDate) {
   try {
 
     const adsQuery = `
@@ -1881,19 +1826,33 @@ GROUP BY account_id`;
       const totalProfit = totalRevenue - totalCost - totalAdSpend;
 
 
-      res.json({
+      return {
         ads: adsWithCtr,
         campaigns: campaignsWithCtr,
         adsets: adsetsWithCtr,
         adaccounts: adAccountsWithCtr,
         totalProfit: totalProfit 
-      });
+    };
+    } catch (error) {
+        console.error('Error fetching Facebook data:', error);
+        throw error; // or handle differently if desired
+    }
+}
+
+app.get('/api/facebook-data', async (req, res) => {
+  const { startDate, endDate } = req.query;
+
+  if (!startDate || !endDate) {
+      return res.status(400).send('Start date and end date are required');
+  }
+
+  try {
+      const data = await fetchFbData(startDate, endDate);
+      res.json(data);
   } catch (error) {
-      console.error('Error fetching data:', error);
       res.status(500).send('Error fetching data');
   }
 });
-
 
 
 
@@ -2159,6 +2118,37 @@ function startInterval() {
 startInterval();
 
 
+let cachedDashboardData = null;
+let cachedFbData = null;
+
+// Function to update cached data every minute
+async function updateData() {
+    const timezone = 'America/Los_Angeles';
+    const todayLA = moment().tz(timezone).startOf('day').format('YYYY-MM-DD');
+
+    try {
+        const dashboardData = await fetchDashboardData(todayLA, todayLA);
+        const fbData = await fetchFbData(todayLA, todayLA);
+
+        // Update the cached data
+        cachedDashboardData = dashboardData;
+        cachedFbData = fbData;
+    } catch (error) {
+        console.error("Error updating cached data:", error);
+    }
+}
+
+// Update data immediately and then every minute
+updateData();
+setInterval(updateData, 60000);
+
+setInterval(() => {
+  if (cachedDashboardData && cachedFbData) {
+      io.emit('data-update', { dashboardData: cachedDashboardData, fbData: cachedFbData });
+  } else {
+      io.emit('data-error', { message: "Cached data is not available yet" });
+  }
+}, 60000);
 
 function getTodayDateRangePacific() {
   const start = moment().tz("America/Los_Angeles").startOf('day');
@@ -2331,7 +2321,19 @@ app.get('/api/users', authenticateToken, authenticateAdmin, async (req, res) => 
 
 
 
+// Server Side - Handle new client connections
+io.on('connection', (socket) => {
+  // Emit current cached data immediately upon new client connection
+  if (cachedDashboardData && cachedFbData) {
+      socket.emit('data-update', { dashboardData: cachedDashboardData, fbData: cachedFbData });
+  } else {
+      socket.emit('data-error', { message: "Cached data is not available yet" });
+  }
+});
 
-app.listen(PORT, () => {
+
+
+server.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
+
