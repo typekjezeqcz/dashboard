@@ -94,7 +94,7 @@ const Together = () => {
 
     useEffect(() => {
         // Connect to WebSocket server
-        const socket = io('http://roasbooster.com'); // Connect to your server running on localhost:2000
+        const socket = io('http://roasbooster.com:2000'); // Connect to your server running on localhost:2000
 
         socket.on('data-update', (data) => {
             // Assuming the server sends data in the structure { dashboardData: {...}, fbData: {...} }
