@@ -8,6 +8,9 @@ import 'react-datepicker/dist/react-datepicker.css';
 import Header from './Header';
 import DateSelector from './DatePicker';
 import { set } from 'date-fns';
+import Spinner from './spinner'; // Import the Spinner component
+import io from 'socket.io-client';
+
 
 const Together = () => {
     const timezone = 'America/Los_Angeles';
@@ -90,49 +93,90 @@ const Together = () => {
     };
 
     useEffect(() => {
-        fetchData();
-        const intervalId = setInterval(fetchData, 60000); // 60000 milliseconds = 1 minute
-        return () => clearInterval(intervalId);
-    }, [startDate, endDate]);
+        // Connect to WebSocket server
+        const socket = io('http://localhost:2000'); // Connect to your server running on localhost:2000
+
+        socket.on('data-update', (data) => {
+            // Assuming the server sends data in the structure { dashboardData: {...}, fbData: {...} }
+            setDashboardData({
+                todaysSales: data.dashboardData.revenue,
+                ordersCount: data.dashboardData.count,
+                averageOrderValue: data.dashboardData.revenue / data.dashboardData.count,
+                largestOrder: data.dashboardData.largestOrder,
+                aggregatedData: data.dashboardData.aggregatedData,
+                isUpdating: false
+            });
+
+            setFbData({
+                adsData: data.fbData.ads,
+                campaignsData: data.fbData.campaigns,
+                adsetsData: data.fbData.adsets,
+                adaccountsData: data.fbData.adaccounts,
+                isLoading: false,
+                totalProfit: data.fbData.totalProfit,
+            });
+            setPrevFbData(fbData);
+        });
+
+        socket.on('data-error', (error) => {
+            console.error('Error receiving data:', error.message);
+            // Optionally update your state to reflect that there was an error
+        });
+
+        // Clean up on unmount or when dependencies change
+        return () => {
+            socket.off('data-update');
+            socket.off('data-error');
+            socket.close();
+        };
+    }, []);
 
     return (
         <div>
         <Header userRole={userRole} />
         <div className="container mx-auto px-6 py-4">
-            <div className="sticky top-0 pt-2 pb-2 bg-white z-20">
+        <div className="sticky top-0 pt-2 pb-2 bg-white z-20">
             <div className="flex flex-wrap justify-between md:justify-end max-w-6xl gap-3 mb-4">
-     <DateSelector setStartDate={setStartDate}     setEndDate={setEndDate} />
-    <div className="flex gap-2">
-      <DatePicker
-          selected={startDate}
-          onChange={date => setStartDate(date)}
-          className="p-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-300 focus:border-blue-300 w-full md:w-auto"
-          dateFormat="yyyy-MM-dd"
-      />
-      <DatePicker
-          selected={endDate}
-          onChange={date => setEndDate(date)}
-          className="p-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-300 focus:border-blue-300 w-full md:w-auto"
-          dateFormat="yyyy-MM-dd"
-      />
-    </div>
-    <button
-        onClick={fetchData}
-        className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg shadow transition duration-300 ease-in-out"
-    >
-        Refresh Data
-    </button>
-</div>
+                <DateSelector setStartDate={setStartDate}     setEndDate={setEndDate} />
+             <div className="flex gap-2">
+                <DatePicker
+                    selected={startDate}
+                    onChange={date => setStartDate(date)}
+                    className="p-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-300 focus:border-blue-300 w-full md:w-auto"
+                    dateFormat="yyyy-MM-dd"
+                />
+                <DatePicker
+                    selected={endDate}
+                    onChange={date => setEndDate(date)}
+                    className="p-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-300 focus:border-blue-300 w-full md:w-auto"
+                    dateFormat="yyyy-MM-dd"
+                />
+                </div>
+                <button
+                    onClick={fetchData}
+                    className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg shadow transition duration-300 ease-in-out"
+                >
+                    Refresh Data
+                </button>
+            </div>
 
             </div>
-            <Dashboard data={dashboardData} />
-            <Fb data={fbData} prevData={prevFbData}/>
+                {dashboardData.isUpdating || fbData.isLoading ? (
+                    <Spinner /> // Or replace with your loading indicator
+                ) : null}
+                </div>
+                {!(dashboardData.isUpdating || fbData.isLoading) && (
+                <>
+                    <Dashboard data={dashboardData} />
+                    <Fb data={fbData} prevData={prevFbData}/>
+                </>
+                )}
+
             <footer className="bg-white py-4">
             <div className="max-w-6xl mx-auto px-6 flex justify-center">
                 <p className="text-gray-600">Made by Felix for rybízci at 10FC</p>
             </div>
         </footer>
-        </div>
         </div>
     );
 };
