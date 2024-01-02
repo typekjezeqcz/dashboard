@@ -19,13 +19,13 @@ const server = http.createServer(app);
 const { Server } = require("socket.io");
 const io = new Server(server, {
   cors: {
-      origin: "http://localhost:1500",  // Allow your client origin
+      origin: "http://roasbooster.com",  // Change to your deployed site's address
       methods: ["GET", "POST"]  // Allow only necessary methods
   }
 });
 
 app.use(cors({
-  origin: "http://localhost:1500",  // Allow your client origin
+  origin: "http://roasbooster.com",  // Change to your deployed site's address
   methods: ["GET", "POST"]  // Allow only necessary methods
 }));
 
