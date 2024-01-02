@@ -351,7 +351,38 @@ const getChangeIndicator = (key, currentValue, previousValue) => {
   return null; // No change
 };
 
-const columns = useMemo(() => getColumnConfig(type), [type]);
+
+const calculatePercentiles = (data, field) => {
+  const values = data.map(item => parseFloat(item[field])).filter(item => !isNaN(item));
+  values.sort((a, b) => a - b);
+  
+  const percentiles = {
+    min: Math.min(...values),
+    max: Math.max(...values)
+  };
+  
+  return percentiles;
+};
+
+// Calculate percentiles for each field
+const roasPercentiles = useMemo(() => calculatePercentiles(data, 'roas'), [data]);
+const spendPercentiles = useMemo(() => calculatePercentiles(data, 'total_spend'), [data]);
+const cpcPercentiles = useMemo(() => calculatePercentiles(data, 'cpc'), [data]);
+
+
+const getColorForValueLog = (value, percentiles) => {
+  // Ensure percentiles are passed as a parameter
+  const logValue = Math.log(value + 1); // Adding 1 to avoid log(0)
+  const normalizedValue = (logValue - Math.log(percentiles.min + 1)) / (Math.log(percentiles.max + 1) - Math.log(percentiles.min + 1));
+
+  if (normalizedValue <= 0.2) return '#FF4500'; // Red
+  if (normalizedValue <= 0.4) return '#f1807e'; // Light Red
+  if (normalizedValue <= 0.6) return '#FFFF00'; // Yellow
+  if (normalizedValue <= 0.8) return '#9ACD32'; // Light Green
+  return '#008000'; // Green
+};
+
+const columns = useMemo(() => getColumnConfig(type), [type, roasPercentiles /* Add other percentiles here too */]);
 
 
 return (
@@ -453,18 +484,29 @@ return (
   </tr>
 </thead>
 
+
 <tbody>
   {sortedAndFilteredData.map((row, idx) => (
     <tr key={idx} onClick={() => handleRowClick(row)} className={`${isRowSelected(row) ? 'selected-row ' : ''}${idx % 2 === 0 ? 'bg-white dark:bg-gray-400' : 'bg-gray-50 dark:bg-gray-300'}`}>
       {columns.map(({ key }) => {
-        const val = row[key];
-        const changeIndicator = prevData && prevData[idx] ? getChangeIndicator(key, val, prevData[idx][key]) : null;
+        const val = parseFloat(row[key]);
+        let cellStyle = {};
+
+        if (['spend', 'roas', 'cpc'].includes(key)) {
+          // Apply percentile color based on the field using log scale
+          let color;
+          if (key === 'roas') color = getColorForValueLog(val, roasPercentiles);
+          else if (key === 'total_spend') color = getColorForValueLog(val, spendPercentiles);
+          else if (key === 'cpc') color = getColorForValueLog(val, cpcPercentiles);
+        
+          // Updated to set text color to black
+          cellStyle = { backgroundColor: color, color: 'black', borderTop: '0.1px solid #000000' };
+        }
+        
+
         return (
-          <td key={key} className={`py-4 px-8 ${
-            ['campaign_name', 'adset_name', 'ad_name'].includes(key) ? "text-left" : "text-center"
-          } ${idx % 2 === 0 ? 'dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-900'}`}>
-            {formatValue(key, val)}
-            {changeIndicator && <span className="change-indicator">{changeIndicator}</span>}
+          <td key={key} style={cellStyle} className={`py-4 px-8 ${isStickyColumn(key) ? "text-left" : "text-center"} ${idx % 2 === 0 ? 'dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-900'}`}>
+            {formatValue(key, row[key])}  {/* Keep the original value formatting */}
           </td>
         );
       })}
