@@ -92,35 +92,41 @@ const Together = () => {
         }
     };
 
+    const isDateToday = (date) => {
+        const today = moment().tz(timezone).startOf('day');
+        return date.isSame(today, 'day');
+    };
+
     useEffect(() => {
         // Connect to WebSocket server
-        const socket = io('http://roasbooster.com:2000'); // Connect to your server running on localhost:2000
+        const socket = io('http://localhost:2000');
 
         socket.on('data-update', (data) => {
-            // Assuming the server sends data in the structure { dashboardData: {...}, fbData: {...} }
-            setDashboardData({
-                todaysSales: data.dashboardData.revenue,
-                ordersCount: data.dashboardData.count,
-                averageOrderValue: data.dashboardData.revenue / data.dashboardData.count,
-                largestOrder: data.dashboardData.largestOrder,
-                aggregatedData: data.dashboardData.aggregatedData,
-                isUpdating: false
-            });
+            // Check if selected date is today before updating state
+            if (isDateToday(moment(startDate)) && isDateToday(moment(endDate))) {
+                setDashboardData({
+                    todaysSales: data.dashboardData.revenue,
+                    ordersCount: data.dashboardData.count,
+                    averageOrderValue: data.dashboardData.revenue / data.dashboardData.count,
+                    largestOrder: data.dashboardData.largestOrder,
+                    aggregatedData: data.dashboardData.aggregatedData,
+                    isUpdating: false
+                });
 
-            setFbData({
-                adsData: data.fbData.ads,
-                campaignsData: data.fbData.campaigns,
-                adsetsData: data.fbData.adsets,
-                adaccountsData: data.fbData.adaccounts,
-                isLoading: false,
-                totalProfit: data.fbData.totalProfit,
-            });
-            setPrevFbData(fbData);
+                setFbData({
+                    adsData: data.fbData.ads,
+                    campaignsData: data.fbData.campaigns,
+                    adsetsData: data.fbData.adsets,
+                    adaccountsData: data.fbData.adaccounts,
+                    isLoading: false,
+                    totalProfit: data.fbData.totalProfit,
+                });
+                setPrevFbData(fbData);
+            }
         });
 
         socket.on('data-error', (error) => {
             console.error('Error receiving data:', error.message);
-            // Optionally update your state to reflect that there was an error
         });
 
         // Clean up on unmount or when dependencies change
@@ -129,7 +135,7 @@ const Together = () => {
             socket.off('data-error');
             socket.close();
         };
-    }, []);
+    }, [startDate, endDate]);
 
     return (
         <div>
