@@ -25,7 +25,7 @@ const io = new Server(server, {
 });
 
 app.use(cors({
-  origin: "http://roasbooster.com:1500"",  // Change to your deployed site's address
+  origin: "http://roasbooster.com:1500",  // Change to your deployed site's address
   methods: ["GET", "POST"]  // Allow only necessary methods
 }));
 
