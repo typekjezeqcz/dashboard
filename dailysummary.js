@@ -18,17 +18,16 @@ const end = moment().tz(timezone).subtract(1, 'days').startOf('day'); // Yesterd
 const start = moment("2023-12-01").tz(timezone).startOf('day'); // Starting from December 1st, 2023
 
 
-async function insertData(tableName, data) {
-  // Your existing insertData function seems to be designed for batch insertion.
-  // It would be best to ensure that the data array is correctly structured and contains all necessary fields.
+async function insertData(tableName, data, date) {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
 
-    // Loop through each item in the data array and insert it into the table
     for (const item of data) {
+      // Include created_at with date for each item
+      item.created_at = date;
       const keys = Object.keys(item);
-      const values = Object.values(item).map(val => val === null ? 'NULL' : `'${val.toString().replace(/'/g, "''")}'`); // Handling null values and escaping single quotes
+      const values = Object.values(item).map(val => val === null ? 'NULL' : `'${val.toString().replace(/'/g, "''")}'`);
       const insertQuery = `INSERT INTO ${tableName} (${keys.join(", ")}) VALUES (${values.join(", ")})`;
       await client.query(insertQuery);
     }
@@ -40,10 +39,10 @@ async function insertData(tableName, data) {
   } finally {
     client.release();
   }
-
 }
 
-async function saveDashboardDataToDb(dashboardData) {
+
+async function saveDashboardDataToDb(dashboardData, date) {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -69,7 +68,7 @@ async function saveDashboardDataToDb(dashboardData) {
     } = aggregatedData;
 
     // Construct the insert query for dashboard data
-    const keys = ['count', 'revenue', 'largestOrder', 'tags', 'utm_source', 'custom1', 'custom2', 'facebook_orders', 'utm_campaign', 'utm_content', 'utm_term'];
+    const keys = ['count', 'revenue', 'largestOrder', 'tags', 'utm_source', 'custom1', 'custom2', 'facebook_orders', 'utm_campaign', 'utm_content', 'utm_term', 'created_at'];
     const values = [
       count,
       revenue,
@@ -81,11 +80,12 @@ async function saveDashboardDataToDb(dashboardData) {
       JSON.stringify(facebookOrders),
       JSON.stringify(utm_campaign),
       JSON.stringify(utm_content),
-      JSON.stringify(utm_term)
-    ].map(val => val === null ? 'NULL' : `'${val.toString().replace(/'/g, "''")}'`); // Handling null values and escaping single quotes
-
+      JSON.stringify(utm_term),
+      `'${date}'` // Add date as created_at for the row
+    ].map(val => val === null ? 'NULL' : `'${val.toString().replace(/'/g, "''")}'`);
+  
     const insertQuery = `INSERT INTO summary_dashboard_data (${keys.join(", ")}) VALUES (${values.join(", ")})`;
-
+  
     // Execute the query
     await client.query(insertQuery);
     await client.query('COMMIT');
@@ -104,23 +104,34 @@ async function fetchDataForDate(date) {
   const dashboardData = await fetchDashboardData(formattedDateDashboard, formattedDateDashboard);
   const fbData = await fetchFbData(formattedDateFb, formattedDateFb);
 
+  const dateString = date.toISOString().split('T')[0]; // 'YYYY-MM-DD'
+
   if (dashboardData) {
-    await saveDashboardDataToDb(dashboardData);
+    await saveDashboardDataToDb(dashboardData, dateString);
   }
 
-  if (fbData) {
-    if (fbData.campaignsData && fbData.campaignsData.length) {
-      await insertData('summary_campaigns', fbData.campaignsData);
+  try {
+    const fbData = await fetchFbData(formattedDateFb, formattedDateFb);
+
+    if (fbData) {
+      // Pass the dateString as the date for each insert
+      if (fbData.ads && fbData.ads.length) {
+        await insertData('summary_ads', fbData.ads, dateString);
+      }
+      if (fbData.campaigns && fbData.campaigns.length) {
+        await insertData('summary_campaigns', fbData.campaigns, dateString);
+      }
+      if (fbData.adsets && fbData.adsets.length) {
+        await insertData('summary_adsets', fbData.adsets, dateString);
+      }
+      if (fbData.adaccounts && fbData.adaccounts.length) {
+        await insertData('summary_accounts', fbData.adaccounts.map(acc => ({...acc, total_profit: fbData.totalProfit})), dateString);
+      }
     }
-    if (fbData.adsetsData && fbData.adsetsData.length) {
-      await insertData('summary_adsets', fbData.adsetsData);
-    }
-    if (fbData.adsData && fbData.adsData.length) {
-      await insertData('summary_ads', fbData.adsData);
-    }
-    if (fbData.adaccounts && fbData.adaccounts.length) {
-      await insertData('summary_accounts', fbData.adaccounts.map(acc => ({...acc, total_profit: fbData.totalProfit})));
-    }
+
+    console.log(`Data fetched and saved for: ${dateString}`);
+  } catch (error) {
+    console.error(`Error fetching or saving data for ${dateString}:`, error);
   }
 }
 
