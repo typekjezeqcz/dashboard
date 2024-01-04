@@ -48,50 +48,94 @@ const Together = () => {
     }, []);
 
     const fetchData = async () => {
-        // Fetching logic for Dashboard
-        const formattedStartDateDashboard = startDate.toISOString().split('T')[0];
-        const formattedEndDateDashboard = endDate.toISOString().split('T')[0];
+        // Formatted dates
+        const formattedStartDate = startDate.toISOString().split('T')[0];
+        const formattedEndDate = endDate.toISOString().split('T')[0];
+    
+        if (isDateToday(moment(startDate)) && isDateToday(moment(endDate))) {
+            // Existing fetching logic for when the selected dates are today
+    
+            // Logic to fetch today's data for Dashboard
+            try {
+                setDashboardData(prevState => ({ ...prevState, isUpdating: true }));
+                const responseDashboard = await fetch(`/api/orders-by-date?start=${formattedStartDate}&end=${formattedEndDate}`);
+                const dataDashboard = await responseDashboard.json();
+                setDashboardData({
+                    todaysSales: dataDashboard.revenue,
+                    ordersCount: dataDashboard.count,
+                    averageOrderValue: dataDashboard.revenue / dataDashboard.count,
+                    largestOrder: dataDashboard.largestOrder,
+                    aggregatedData: dataDashboard.aggregatedData,
+                    isUpdating: false
+                });
+            } catch (error) {
+                console.error('Error fetching Dashboard data:', error);
+                setDashboardData(prevState => ({ ...prevState, isUpdating: false }));
+            }
+    
+            // Logic to fetch today's data for Facebook
+            try {
+                setFbData(prevState => ({ ...prevState, isLoading: true }));
+                const timezone = 'America/Los_Angeles';
+                const formattedStartDateFb = new Date(startDate).toLocaleDateString('en-US', { timeZone: timezone });
+                const formattedEndDateFb = new Date(endDate).toLocaleDateString('en-US', { timeZone: timezone });
+    
+                const responseFb = await axios.get(`/api/facebook-data?startDate=${formattedStartDateFb}&endDate=${formattedEndDateFb}`);
+                setFbData({
+                    adsData: responseFb.data.ads,
+                    campaignsData: responseFb.data.campaigns,
+                    adsetsData: responseFb.data.adsets,
+                    adaccountsData: responseFb.data.adaccounts,
+                    isLoading: false,
+                    totalProfit: responseFb.data.totalProfit,
+                });
+                setFetchVersion(prevVersion => prevVersion + 1);
+                setPrevFbData(fbData);
+            } catch (error) {
+                console.error('Error fetching Facebook data:', error);
+                setFbData(prevState => ({ ...prevState, isLoading: false }));
+            }
+        } else {
+            // Fetching logic for when the selected dates are NOT today
+            try {
+                // Start updating state to show loading
+                setDashboardData(prevState => ({ ...prevState, isUpdating: true }));
+                setFbData(prevState => ({ ...prevState, isLoading: true }));
+    
+                // Fetch summary data for the specified date range
+                const responseSummary = await axios.get(`/api/summary?startDate=${formattedStartDate}&endDate=${formattedEndDate}`);
+                const { adsSummary, adsetsSummary, campaignsSummary, accountsSummary } = responseSummary.data;
+    
+                const responseDashboard = await axios.get(`/api/dashboard-summary?startDate=${formattedStartDate}&endDate=${formattedEndDate}`);
+                const dashboardSummaryData = responseDashboard.data;
+                console.log("Dashboard Summary Data:", dashboardSummaryData);
 
-        try {
-            setDashboardData(prevState => ({ ...prevState}));
-            const responseDashboard = await fetch(`/api/orders-by-date?start=${formattedStartDateDashboard}&end=${formattedEndDateDashboard}`);
-            const dataDashboard = await responseDashboard.json();
-            setDashboardData({
-                todaysSales: dataDashboard.revenue,
-                ordersCount: dataDashboard.count,
-                averageOrderValue: dataDashboard.revenue / dataDashboard.count,
-                largestOrder: dataDashboard.largestOrder,
-                aggregatedData: dataDashboard.aggregatedData,
-                isUpdating: false
-            });
-        } catch (error) {
-            console.error('Error fetching Dashboard data:', error);
-            setDashboardData(prevState => ({ ...prevState, isUpdating: false }));
-        }
-
-        // Fetching logic for Fb
-        try {
-            const timezone = 'America/Los_Angeles';
-            const formattedStartDateFb = new Date(startDate).toLocaleDateString('en-US', { timeZone: timezone });
-            const formattedEndDateFb = new Date(endDate).toLocaleDateString('en-US', { timeZone: timezone });
-
-            const responseFb = await axios.get(`/api/facebook-data?startDate=${formattedStartDateFb}&endDate=${formattedEndDateFb}`);
-            setFbData({
-                adsData: responseFb.data.ads,
-                campaignsData: responseFb.data.campaigns,
-                adsetsData: responseFb.data.adsets,
-                adaccountsData: responseFb.data.adaccounts,
-                isLoading: false,
-                totalProfit: responseFb.data.totalProfit, // Adding totalProfit here
-            });
-            setFetchVersion(prevVersion => prevVersion + 1);
-            setPrevFbData(fbData);
-        } catch (error) {
-            console.error('Error fetching Facebook data:', error);
-            setFbData(prevState => ({ ...prevState, isLoading: false }));
+                // Update state with the fetched data
+                setDashboardData({
+                    todaysSales: dashboardSummaryData.revenue,
+                    ordersCount: dashboardSummaryData.count,
+                    averageOrderValue: dashboardSummaryData.averageOrderValue,
+                    largestOrder: dashboardSummaryData.largestOrder,
+                    aggregatedData: dashboardSummaryData.aggregatedData,
+                    isUpdating: false
+                });
+    
+                setFbData({
+                    adsData: adsSummary,
+                    campaignsData: campaignsSummary,
+                    adsetsData: adsetsSummary,
+                    adaccountsData: accountsSummary,
+                    isLoading: false,
+                });
+            } catch (error) {
+                console.error('Error fetching data:', error);
+                // Update state to reflect the error/fetching completion
+                setDashboardData(prevState => ({ ...prevState, isUpdating: false }));
+                setFbData(prevState => ({ ...prevState, isLoading: false }));
+            }
         }
     };
-
+    
     const isDateToday = (date) => {
         const today = moment().tz(timezone).startOf('day');
         return date.isSame(today, 'day');
@@ -99,7 +143,7 @@ const Together = () => {
 
     useEffect(() => {
         // Connect to WebSocket server
-        const socket = io('http://roasbooster.com:2000');
+        const socket = io('http://localhost:2000');
 
         socket.on('data-update', (data) => {
             // Check if selected date is today before updating state
