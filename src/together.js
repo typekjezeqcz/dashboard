@@ -43,6 +43,46 @@ const Together = () => {
     });
 
     useEffect(() => {
+        // Connect to WebSocket server
+        const socket = io('http://roasbooster.com:2000');
+
+        socket.on('data-update', (data) => {
+            // Check if selected date is today before updating state
+            if (isDateToday(moment(startDate)) && isDateToday(moment(endDate))) {
+                setDashboardData({
+                    todaysSales: data.dashboardData.revenue,
+                    ordersCount: data.dashboardData.count,
+                    averageOrderValue: data.dashboardData.revenue / data.dashboardData.count,
+                    largestOrder: data.dashboardData.largestOrder,
+                    aggregatedData: data.dashboardData.aggregatedData,
+                    isUpdating: false
+                });
+
+                setFbData({
+                    adsData: data.fbData.ads,
+                    campaignsData: data.fbData.campaigns,
+                    adsetsData: data.fbData.adsets,
+                    adaccountsData: data.fbData.adaccounts,
+                    isLoading: false,
+                    totalProfit: data.fbData.totalProfit,
+                });
+                setPrevFbData(fbData);
+            }
+        });
+
+        socket.on('data-error', (error) => {
+            console.error('Error receiving data:', error.message);
+        });
+
+        // Clean up on unmount or when dependencies change
+        return () => {
+            socket.off('data-update');
+            socket.off('data-error');
+            socket.close();
+        };
+    }, [startDate, endDate]);
+
+    useEffect(() => {
         const role = localStorage.getItem('userRole');
         setUserRole(role);
     }, []);
@@ -141,45 +181,7 @@ const Together = () => {
         return date.isSame(today, 'day');
     };
 
-    useEffect(() => {
-        // Connect to WebSocket server
-        const socket = io('http://roasbooster.com:2000');
 
-        socket.on('data-update', (data) => {
-            // Check if selected date is today before updating state
-            if (isDateToday(moment(startDate)) && isDateToday(moment(endDate))) {
-                setDashboardData({
-                    todaysSales: data.dashboardData.revenue,
-                    ordersCount: data.dashboardData.count,
-                    averageOrderValue: data.dashboardData.revenue / data.dashboardData.count,
-                    largestOrder: data.dashboardData.largestOrder,
-                    aggregatedData: data.dashboardData.aggregatedData,
-                    isUpdating: false
-                });
-
-                setFbData({
-                    adsData: data.fbData.ads,
-                    campaignsData: data.fbData.campaigns,
-                    adsetsData: data.fbData.adsets,
-                    adaccountsData: data.fbData.adaccounts,
-                    isLoading: false,
-                    totalProfit: data.fbData.totalProfit,
-                });
-                setPrevFbData(fbData);
-            }
-        });
-
-        socket.on('data-error', (error) => {
-            console.error('Error receiving data:', error.message);
-        });
-
-        // Clean up on unmount or when dependencies change
-        return () => {
-            socket.off('data-update');
-            socket.off('data-error');
-            socket.close();
-        };
-    }, [startDate, endDate]);
 
     return (
         <div>
