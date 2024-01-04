@@ -19,13 +19,13 @@ const server = http.createServer(app);
 const { Server } = require("socket.io");
 const io = new Server(server, {
   cors: {
-      origin: "http://roasbooster.com",  // Change to match the client's address
+      origin: "http://roasbooster.com",  // Allow your client origin
       methods: ["GET", "POST"]  // Allow only necessary methods
   }
 });
 
 app.use(cors({
-  origin: "http://roasbooster.com",  // Change to match the client's address
+  origin: "http://roasbooster.com",  // Allow your client origin
   methods: ["GET", "POST"]  // Allow only necessary methods
 }));
 
@@ -88,6 +88,37 @@ function getTodaysDate() {
 }
 
 
+
+const timezone = 'America/Los_Angeles';
+const specificDate = moment("2024-01-01").tz(timezone).startOf('day');
+
+async function selectAndLogData(date) {
+  const client = await pool.connect();
+  let allData = []; // Initialize an array to hold all data
+
+  try {
+    const formattedDate = '2024-01-01';
+    const tables = ['summary_ads', 'summary_accounts']; // Replace with your actual table names
+
+    for (const tableName of tables) {
+      const query = `SELECT * FROM ${tableName} WHERE created_at = '${formattedDate}'`;
+      const res = await client.query(query);
+      
+      // Push the data from each table into the allData array
+      allData.push({table: tableName, data: res.rows});
+    }
+
+    // Once all data is fetched, save it to a file
+    fs.writeFileSync('aaa.json', JSON.stringify(allData, null, 2)); // Save the data in pretty format
+
+  } catch (error) {
+    console.error(`Error selecting data: ${error}`);
+  } finally {
+    client.release();
+  }
+}
+
+selectAndLogData(specificDate);
 
 
 
@@ -1527,7 +1558,6 @@ async function fetchFbData(startDate, endDate) {
            account_id,
            data_set,
            SUM(impressions) as total_impressions, 
-           SUM(clicks) as total_clicks, 
            SUM(spend) as total_spend,
            AVG(cpm) as average_cpm,
            AVG(ctr) as average_ctr,
@@ -1543,7 +1573,6 @@ async function fetchFbData(startDate, endDate) {
            account_id,
            data_set,
            SUM(impressions) as total_impressions, 
-           SUM(clicks) as total_clicks, 
            SUM(spend) as total_spend,
            AVG(cpm) as average_cpm,
            AVG(ctr) as average_ctr,
@@ -1560,7 +1589,6 @@ async function fetchFbData(startDate, endDate) {
                account_id,
                data_set,
         SUM(impressions) as total_impressions, 
-        SUM(clicks) as total_clicks, 
         SUM(spend) as total_spend,
         AVG(cpm) as average_cpm,
         AVG(ctr) as average_ctr,
@@ -1572,7 +1600,6 @@ async function fetchFbData(startDate, endDate) {
   const adaccountsQuery = `
   SELECT account_id, 
   SUM(impressions) as total_impressions, 
-  SUM(clicks) as total_clicks, 
   SUM(spend) as total_spend,
   AVG(cpm) as average_cpm,
   AVG(ctr) as average_ctr,
@@ -2169,6 +2196,291 @@ function getThisWeekDateRangePacific() {
 }
 
 
+// Updated fetchSummaryData function
+const fetchSummaryData = async (table, startDate, endDate) => {
+  const client = await pool.connect();
+  try {
+    const query = {
+      text: `SELECT * FROM ${table} WHERE created_at BETWEEN $1 AND $2;`,
+      values: [startDate, endDate],
+    };
+    const res = await client.query(query);
+    return res.rows;
+  } catch (err) {
+    console.error(err);
+    return [];
+  } finally {
+    client.release();
+  }
+};
+
+// Define API endpoint with date filtering
+// Define API endpoint with date filtering
+app.get('/api/summary', async (req, res) => {
+  try {
+    const { startDate, endDate } = req.query;
+
+    // Validate date inputs
+    if (!startDate || !endDate) {
+      return res.status(400).json({ message: "Please provide both startDate and endDate in the format YYYY-MM-DD" });
+    }
+
+    // Fetch and calculate metrics for each entity type
+    const adsSummary = calculateMetrics(await fetchSummaryData('summary_ads', startDate, endDate), 'ad');
+    const adsetsSummary = calculateMetrics(await fetchSummaryData('summary_adsets', startDate, endDate), 'adset');
+    const campaignsSummary = calculateMetrics(await fetchSummaryData('summary_campaigns', startDate, endDate), 'campaign');
+    const accountsSummary = calculateMetrics(await fetchSummaryData('summary_accounts', startDate, endDate), 'account');
+  
+
+    // Send the data with calculated metrics
+    res.json({
+      adsSummary,          // Contains calculated metrics for ads
+      adsetsSummary,       // Contains calculated metrics for adsets
+      campaignsSummary,    // Contains calculated metrics for campaigns
+      accountsSummary      // Contains calculated metrics for accounts
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Server error');
+  }
+});
+
+function calculateMetrics(data, type) {
+  // Initialize an object to hold aggregated data for each unique ID
+  const aggregatedMetrics = {};
+
+  data.forEach(item => {
+    // Determine the ID based on the type of data you're processing
+    let id;
+    switch (type) {
+      case 'ad':
+        id = item.ad_id;
+        break;
+      case 'adset':
+        id = item.adset_id;
+        break;
+      case 'campaign':
+        id = item.campaign_id;
+        break;
+      case 'account':
+        id = item.account_id;
+        break;
+      default:
+        id = undefined;
+    }
+
+    // Initialize the aggregation object for this ID if it hasn't been created yet
+    if (id) {
+      // Initialize or aggregate the metrics
+      if (!aggregatedMetrics[id]) {
+        aggregatedMetrics[id] = {
+          id: id,
+          ad_id: item.ad_id, // Corrected here
+          adset_id: item.adset_id, // Corrected here
+          ad_name: item.ad_name, // Corrected here
+          adset_name: item.adset_name, // Corrected here
+          campaign_id: item.campaign_id, // Corrected here
+          campaign_name: item.campaign_name, // Corrected here
+          account_id: item.account_id, 
+          totalSpend: 0,
+          totalRevenue: 0,
+          totalCost: 0,
+          totalProfit: 0,
+          totalOrders: 0,
+          totalClicks: 0,
+          totalImpressions: 0,
+        };
+      }
+
+      aggregatedMetrics[id].totalSpend += parseFloat(item.total_spend) || 0;
+      aggregatedMetrics[id].totalRevenue += parseFloat(item.total_revenue) || 0;
+      aggregatedMetrics[id].totalCost += parseFloat(item.total_cost) || 0; // Ensure you have total_cost field
+      aggregatedMetrics[id].totalOrders += parseInt(item.order_count) || 0;
+      aggregatedMetrics[id].totalClicks += parseInt(item.unique_clicks) || 0;
+      aggregatedMetrics[id].totalImpressions += parseInt(item.total_impressions) || 0;
+    }
+  });
+
+  // Convert aggregatedMetrics to an array and calculate the derived metrics for each ID
+  return Object.values(aggregatedMetrics).map(entry => {
+    // Adjusted profit calculation
+    const adjustedRevenue = entry.totalRevenue * 0.86;
+    const profit = adjustedRevenue - entry.totalCost - entry.totalSpend;
+
+    const ROAS = entry.totalSpend ? (entry.totalRevenue / entry.totalSpend) : 0;
+    const profitPercent = entry.totalRevenue ? (profit / entry.totalRevenue) * 100 : 0;
+    const CPA = entry.totalOrders ? entry.totalSpend / entry.totalOrders : 0;
+    const AOV = entry.totalOrders ? entry.totalRevenue / entry.totalOrders : 0;
+    const CVR = entry.totalClicks ? (entry.totalOrders / entry.totalClicks) * 100 : 0; // Percentage
+    const EPC = entry.totalClicks ? entry.totalRevenue / entry.totalClicks : 0;
+    const CPC = entry.totalClicks ? entry.totalSpend / entry.totalClicks : 0;
+    const CTR = entry.totalImpressions ? (entry.totalClicks / entry.totalImpressions) * 100 : 0; // Percentage
+    const CPM = entry.totalImpressions ? (entry.totalSpend / entry.totalImpressions) * 1000 : 0; // Cost per thousand impressions
+
+    return {
+        id: entry.id,
+        ad_id: entry.ad_id, // Corrected here
+        adset_id: entry.adset_id, // Corrected here
+        ad_name: entry.ad_name, // Corrected here
+        adset_name: entry.adset_name, // Corrected here
+        campaign_id: entry.campaign_id, // Corrected here
+        campaign_name: entry.campaign_name, // Corrected here
+        account_id: entry.account_id, 
+        total_spend: entry.totalSpend.toFixed(2),
+        roas: ROAS.toFixed(2),
+        profit: profit.toFixed(2),
+        profit_margin: profitPercent.toFixed(2),
+        cpa: CPA.toFixed(2),
+        aov: AOV.toFixed(2),
+        cvr: CVR.toFixed(2),
+        epc: EPC.toFixed(2),
+        cpc: CPC.toFixed(2),
+        average_ctr: CTR.toFixed(2),
+        average_cpm: CPM.toFixed(2),
+        unique_clicks: entry.totalClicks,
+        order_count: entry.totalOrders,
+        total_revenue: entry.totalRevenue.toFixed(2),
+        total_cost: entry.totalCost.toFixed(2) // Include total cost in the output for reference
+    };
+  });
+}
+
+
+
+const fetchDashboardSummary = async (startDate, endDate) => {
+  const client = await pool.connect();
+  try {
+    const queryText = 'SELECT * FROM summary_dashboard_data WHERE created_at BETWEEN $1 AND $2;';
+    const res = await client.query(queryText, [startDate, endDate]);
+    const rows = res.rows;
+
+    // Prepare to aggregate data
+    const aggregatedData = {
+      tags: {},
+      utm_source: {},
+      custom1: {},
+      custom2: {},
+      facebookOrders: {},
+      utm_campaign: {},
+      utm_content: {},
+      utm_term: {}
+    };
+
+    let totalRevenue = 0;
+    let totalCount = 0;
+    let largestOrder = 0;
+
+    // Loop through each row to build the aggregated data structure
+    rows.forEach(row => {
+      if (Array.isArray(row.tags)) {
+        row.tags.forEach(tag => {
+            aggregatedData.tags[tag] = (aggregatedData.tags[tag] || 0) + 1;
+        });
+    }
+
+    // Aggregate 'utm_source'
+    if (Array.isArray(row.utm_source)) {
+        row.utm_source.forEach(source => {
+            aggregatedData.utm_source[source] = (aggregatedData.utm_source[source] || 0) + 1;
+        });
+    }
+
+    // Aggregate 'custom1'
+    if (Array.isArray(row.custom1)) {
+        row.custom1.forEach(c1 => {
+            aggregatedData.custom1[c1] = (aggregatedData.custom1[c1] || 0) + 1;
+        });
+    }
+
+    // Aggregate 'custom2'
+    if (Array.isArray(row.custom2)) {
+        row.custom2.forEach(c2 => {
+            aggregatedData.custom2[c2] = (aggregatedData.custom2[c2] || 0) + 1;
+        });
+    }
+
+    // Aggregate 'facebookOrders'
+    if (Array.isArray(row.facebook_orders)) {
+        row.facebook_orders.forEach(order => {
+            aggregatedData.facebookOrders[order] = (aggregatedData.facebookOrders[order] || 0) + 1;
+        });
+    }
+
+    // Aggregate 'utm_campaign'
+    if (Array.isArray(row.utm_campaign)) {
+        row.utm_campaign.forEach(campaign => {
+            aggregatedData.utm_campaign[campaign] = (aggregatedData.utm_campaign[campaign] || 0) + 1;
+        });
+    }
+
+    // Aggregate 'utm_content'
+    if (Array.isArray(row.utm_content)) {
+        row.utm_content.forEach(content => {
+            aggregatedData.utm_content[content] = (aggregatedData.utm_content[content] || 0) + 1;
+        });
+    }
+
+    // Aggregate 'utm_term'
+    if (Array.isArray(row.utm_term)) {
+        row.utm_term.forEach(term => {
+            aggregatedData.utm_term[term] = (aggregatedData.utm_term[term] || 0) + 1;
+        });
+    }
+
+    console.log(`Day: ${row.created_at}, Revenue: ${row.revenue}, Count: ${row.count}, Largest Order: ${row.largestorder}`);
+
+    // Ensure numeric values for calculations
+    const dayRevenue = parseFloat(row.revenue) || 0;
+    const dayCount = parseInt(row.count) || 0;
+    const dayLargestOrder = parseFloat(row.largestorder) || 0;
+
+    // Aggregate totals
+    totalRevenue += dayRevenue;
+    totalCount += dayCount;
+    if (dayLargestOrder > largestOrder) largestOrder = dayLargestOrder;
+  });
+
+  // Compute average order value
+  const averageOrderValue = totalCount ? totalRevenue / totalCount : 0;
+
+  // Prepare and return summary data
+  const summaryData = {
+    aggregatedData: aggregatedData,
+    revenue: totalRevenue.toFixed(2),
+    count: totalCount,
+    averageOrderValue: averageOrderValue.toFixed(2),
+    largestOrder: largestOrder.toFixed(2)
+  };
+  return summaryData;
+} catch (err) {
+  console.error(err);
+  return {};
+} finally {
+  client.release();
+}
+};
+
+
+app.get('/api/dashboard-summary', async (req, res) => {
+  try {
+    const { startDate, endDate } = req.query;
+
+    // Validate date inputs
+    if (!startDate || !endDate) {
+      return res.status(400).json({ message: "Please provide both startDate and endDate in the format YYYY-MM-DD" });
+    }
+
+    // Fetch and package dashboard data
+    const summaryData = await fetchDashboardSummary(startDate, endDate);
+
+    // Send the packaged data
+    res.json(summaryData);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Server error');
+  }
+});
+
 
 
 
@@ -2207,6 +2519,7 @@ app.get('/api/facebook-shopify', async (req, res) => {
     res.status(500).send('Error fetching the count of Facebook orders from Shopify');
   }
 });
+
 
 
 
@@ -2341,4 +2654,3 @@ module.exports = {
   fetchDashboardData,
   fetchFbData
 };
-
