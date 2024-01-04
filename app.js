@@ -2787,13 +2787,21 @@ app.get('/api/users', authenticateToken, authenticateAdmin, async (req, res) => 
 
 // Server Side - Handle new client connections
 io.on('connection', (socket) => {
-  // Emit current cached data immediately upon new client connection
-  if (cachedDashboardData && cachedFbData) {
-      socket.emit('data-update', { dashboardData: cachedDashboardData, fbData: cachedFbData });
-  } else {
-      socket.emit('data-error', { message: "Cached data is not available yet" });
-  }
+    console.log(`Client connected: ${socket.id}`);
+
+    if (cachedDashboardData && cachedFbData) {
+        console.log(`Sending cached data to client: ${socket.id}`);
+        socket.emit('data-update', { dashboardData: cachedDashboardData, fbData: cachedFbData });
+    } else {
+        console.log(`Sending data-error to client: ${socket.id}`);
+        socket.emit('data-error', { message: "Cached data is not available yet" });
+    }
+
+    socket.on('disconnect', () => {
+        console.log(`Client disconnected: ${socket.id}`);
+    });
 });
+
 
 
 
