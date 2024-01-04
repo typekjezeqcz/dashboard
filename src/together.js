@@ -42,11 +42,18 @@ const Together = () => {
         isInitialLoad: true
     });
 
-    useEffect(() => {
-        // Connect to WebSocket server
-        const socket = io('http://roasbooster.com:2000');
+useEffect(() => {
+    console.log("Attempting to connect to WebSocket");
 
-        socket.on('data-update', (data) => {
+    // Connect to WebSocket server
+    const socket = io('http://roasbooster.com:2000');
+
+    socket.on('connect', () => {
+        console.log('Connected to the WebSocket server');
+    });
+
+    socket.on('data-update', (data) => {
+        console.log('Received data-update from WebSocket', data);
             // Check if selected date is today before updating state
             if (isDateToday(moment(startDate)) && isDateToday(moment(endDate))) {
                 setDashboardData({
@@ -70,18 +77,22 @@ const Together = () => {
             }
         });
 
-        socket.on('data-error', (error) => {
-            console.error('Error receiving data:', error.message);
-        });
+    socket.on('data-error', (error) => {
+        console.error('Received data-error from WebSocket', error);
+    });
 
-        // Clean up on unmount or when dependencies change
-        return () => {
-            socket.off('data-update');
-            socket.off('data-error');
-            socket.close();
-        };
-    }, [startDate, endDate]);
+    socket.on('disconnect', () => {
+        console.log('Disconnected from the WebSocket server');
+    });
 
+    // Clean up on unmount or when dependencies change
+    return () => {
+        console.log("Disconnecting WebSocket on cleanup");
+        socket.off('data-update');
+        socket.off('data-error');
+        socket.close();
+    };
+}, [startDate, endDate]);
     useEffect(() => {
         const role = localStorage.getItem('userRole');
         setUserRole(role);
