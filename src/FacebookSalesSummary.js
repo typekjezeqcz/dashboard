@@ -1,5 +1,3 @@
-// FacebookSalesSummary.js
-
 import React from 'react';
 
 // SummaryCard Component
@@ -21,12 +19,31 @@ function formatCurrency(value) {
   }).format(value);
 }
 
+function normalizeAccountData(account) {
+  return {
+    ...account,
+    total_revenue: parseFloat(account.total_revenue),
+    order_count: parseInt(account.order_count),
+    total_spend: parseFloat(account.total_spend),
+    total_profit: parseInt(account.profit),
+
+  };
+}
+
 // Component to calculate and display summary cards
-const SummaryCardsContainer = ({ adaccountsData, totalProfit }) => {
-  const totalSales = adaccountsData.reduce((acc, account) => acc + account.total_revenue, 0);
-  const totalOrders = adaccountsData.reduce((acc, account) => acc + account.order_count, 0);
-  const totalSpend = adaccountsData.reduce((acc, account) => acc + account.total_spend, 0);
+const SummaryCardsContainer = ({ adaccountsData }) => {
+  // Normalize each account data entry
+  const normalizedData = adaccountsData.map(normalizeAccountData);
+
+  // Perform calculations using normalized data
+  const totalSales = normalizedData.reduce((acc, account) => acc + account.total_revenue, 0);
+  const totalOrders = normalizedData.reduce((acc, account) => acc + account.order_count, 0);
+  const totalProfit = normalizedData.reduce((acc, account) => acc + account.total_profit, 0);
+  const totalSpend = normalizedData.reduce((acc, account) => acc + account.total_spend, 0);
   const averageROAS = totalSpend ? (totalSales / totalSpend) : 0; // Calculating ROAS
+
+  // Log the normalized data to the console
+  console.log(normalizedData);
 
   return (
     <div className="mt-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
